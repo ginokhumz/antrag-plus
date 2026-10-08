@@ -195,7 +195,7 @@ type Program = {
 
 **Why conditions are bounded quantities, not numbers.** Each of the five traps in §2.5 maps to one part of the shape. `bound` captures the adverb structurally, so `maximal` and `mindestens` cannot be confused. `per` and `of` carry the basis, so a per-person-day rate is never compared against a project ceiling. `Duration` is always in months regardless of how the page words it, so `4 Jahre` and `48 Monate` compare equal rather than one of them vanishing. Both are arrays because `pauschalfoerderung` legitimately has several. Every member is optional because `zeichen-setzen` states no percentage at all. And because each stays a `Field<T>`, `evidence` retains the original German string — which is what makes a bad parse auditable instead of invisible.
 
-This is what makes the data indexable. *Grants above €50,000* becomes `grant` where `per === 'project' && bound === 'max' && amountEur > 50000`, which on current data returns `junge-menschen` alone and correctly excludes `pauschalfoerderung` rather than matching its `50`.
+This is what makes the data indexable. *Grants above €50,000* becomes `grant` where `per === 'project' && bound === 'max' && amountEur > 50000`, which on current data returns `junge-menschen` alone and correctly excludes `pauschalfoerderung` rather than matching its `50`. The build asserts that query as a unit test (§7) and does not expose it as an endpoint (§11) — the schema's job is to make the question answerable, and seven records need no query layer to prove it.
 
 **One record is one fundable thing.** `pauschalfoerderung` becomes two records sharing a `url` and distinguished by `slug` and `anchor` (`pauschalfoerderung-bildungsveranstaltungen`, `pauschalfoerderung-ferienreisen`). Keeping both sets of terms on one record would make "max grant" ambiguous for that programme and force the filter to pick or merge — reintroducing exactly the basis confusion the typed quantities exist to prevent. The cost is that programme count no longer equals URL count, which §4.2 handles explicitly.
 
@@ -309,7 +309,7 @@ GET /api/meta            → run report: scrapedAt, per-strategy counts, disagre
 
 The list endpoint carries `conditions` but strips body prose; a list view filters on conditions and never renders prose.
 
-**Query parameters** on `/api/programs`, which is where indexability stops being theoretical: `minGrantEur`, `maxGrantEur`, `minDurationMonths`, `minFundingRate`. Each filters only quantities whose basis makes the comparison valid — `minGrantEur=50000` considers `grant` entries with `per === 'project'` and ignores per-person-day rates rather than silently mixing them. A program whose relevant quantity is absent is excluded from a filtered result and never treated as zero. Unknown parameters are rejected with `400` instead of ignored, so a typo cannot look like an empty result set. `/api/meta` is a few lines and earns its place — it lets the UI show when the data was scraped and that two programs were found by only one strategy. Unknown slug → `404 { error: { code, message } }`.
+No query parameters. The endpoints return whole collections and the three filters the data model would support are deferred to §11 — six or seven records do not need server-side filtering, and building it here would be scaffolding for a scale this build does not have. The point the typed quantities make is that such filters *become possible*; demonstrating them is not the same as needing them. `/api/meta` is a few lines and earns its place — it lets the UI show when the data was scraped and that two programs were found by only one strategy. Unknown slug → `404 { error: { code, message } }`.
 
 **No database.** Seven records from a static snapshot (six URLs, §2.6): a JSON file keeps the pipeline inspectable with `cat`, and the repo clones-and-runs. Accepted tradeoff: re-scraping requires an API restart. A file watcher is not worth it.
 
@@ -317,10 +317,10 @@ The list endpoint carries `conditions` but strips body prose; a list view filter
 
 Vite + React + TypeScript, React Router, two routes, plain CSS, system font stack, **no component library**. Vite dev proxy to the API, so no CORS configuration.
 
-- `/` — list of programs: name, short description, deadline badge, grant ceiling, and a single numeric "minimum grant" filter wired to `minGrantEur`
+- `/` — list of programmes: name, short description, deadline badge, grant ceiling
 - `/programs/:slug` — name, description, facts, a conditions table, body sections, outbound link to the original page
 
-Loading and error states handled; that is the extent of it. The filter is one input, not a faceted search — enough to show the index works, and no more.
+Loading and error states handled; that is the extent of it. No filtering or sorting UI (§11).
 
 The conditions table renders each quantity with its bound and basis (`max 50.000 € pro Projekt`, `min 10 % der förderfähigen Kosten`) rather than a bare figure. A number shown without its bound and basis is the display-layer version of the §2.5 bug.
 
@@ -345,7 +345,8 @@ Tests that would actually catch a regression:
 - **Segmentation** — `pauschalfoerderung` yields exactly two records with distinct slugs and anchors, each carrying its own grant and exclusions; the run report reads `urls: 6, programmes: 7`
 - **Module pruning on `aktion-mensch-stiftung`** — no conditions are extracted, and specifically none of `600.000`, `450.000` or the promo `Förderkonditionen` match. The regression test for §2.6, where the naive version succeeds and is wrong
 - **Misspelled label** — `Rahmenbedinungen` is classified as a requirement block despite the missing `g`
-- **API** — supertest: list shape, detail by slug, 404, and that `minGrantEur=50000` returns `junge-menschen` only — the query from §3 asserted end to end
+- **API** — supertest: list shape, detail by slug, 404
+- **The §3 query as a unit test, not an endpoint test** — filtering the parsed records for `per === 'project' && bound === 'max' && amountEur > 50000` returns `junge-menschen` alone and excludes `pauschalfoerderung`. This is the assertion that matters: it proves the data shape answers the question, independent of whether an endpoint exposes it
 - **Frontend** — two tests: list renders n items; badge renders all three union kinds
 
 Not tested: Express wiring, Router configuration, or anything exercising only a framework. Coverage theater costs review attention and catches nothing.
@@ -394,6 +395,22 @@ npm test              # fixtures, offline
 npm run verify:live   # diff live site against fixtures
 ```
 
-## 11. Out of scope
+## 11. With more time
+
+Deliberately not built, in rough order of what the data model already earns:
+
+**Query and filter layer.** `/api/programs` would take `minGrantEur`, `maxGrantEur`, `minDurationMonths`, `minFundingRate`. The non-obvious part is the semantics, which the typed quantities dictate: each filter compares only quantities whose basis makes the comparison valid, so `minGrantEur=50000` considers `grant` entries with `per === 'project'` and ignores per-person-day rates rather than silently mixing units. A programme whose relevant quantity is absent is excluded rather than treated as zero. Unknown parameters return `400` instead of being ignored, so a typo cannot masquerade as an empty result set. With a filter layer, the frontend gains a faceted sidebar; at seven records neither is justified.
+
+**Narrow requirement predicates.** Requirements are classified prose (§2.7) because the content is not comparable in general. Specific high-value predicates are extractable anyway — "requires `Anerkennung nach §75 SGB VIII`", "requires supra-regional reach" — as individual locale-tier extractors rather than a generic schema.
+
+**Richtlinien PDFs.** `aktion-mensch-stiftung` links downloadable guidelines, and the real eligibility rules live there rather than on the page. PDF extraction is a separate pipeline with its own failure modes.
+
+**Change detection as a first-class output.** `verify:live` (§7) diffs against fixtures. At scale the useful artefact is a per-field change feed — "this programme's deadline moved", "this grant ceiling rose" — which is what a funding aggregator's users actually want notifying about.
+
+**Full basis-enum coverage.** `MoneyBasis` and `RateBasis` are closed over seven programmes on one site. A national corpus needs more members and, more importantly, a rejection path that surfaces an unrecognised basis rather than coercing it into an existing one.
+
+## 12. Out of scope
+
+Distinct from §11: those are things the data model earns that this build does not need. These are things that would be wrong to build at all here.
 
 Headless browser (unnecessary — §2). Database. Authentication. Pagination (7 records). Deployment. i18n of the UI chrome. A generic extraction engine validated on one source.
