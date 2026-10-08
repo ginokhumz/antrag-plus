@@ -31,6 +31,14 @@ nowhere else — a "general" module that reaches for a site selector is miscateg
   distinguishes a correct result from a silent miss.
 - **Zero discovered programs is a non-zero exit.** Reporting success on an empty result is
   the worst available failure.
+- **Quantities are bounded, never bare numbers.** A grant, rate, or duration is
+  `{ value, bound, basis }`. German digit grouping means `50.000` is 50000, the bound comes
+  from the governing adverb (`maximal` → max, `mindestens` → min), and the basis comes from
+  the unit phrase (`pro Tag` → person-day, `der förderfähigen Kosten` → eligible-costs).
+  A quantity whose basis cannot be classified is **dropped with an issue, never guessed** —
+  an unclassified amount silently enters comparisons and is worse than a missing one.
+- **Condition scans are scoped to the conditions section** before matching. Unscoped, the
+  approval cadence (`Bewilligungsrunden … 2 Monaten`) reads as a project duration.
 - **Validation issues attach per field, not per record.** A bad deadline degrades to
   `unknown` with a logged issue; the record still ships. Never drop a record silently.
 - **The API validates the snapshot at boot** against the same schema the scraper writes
