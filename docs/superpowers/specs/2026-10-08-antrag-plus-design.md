@@ -100,6 +100,8 @@ That page also produces two false positives that heading-scoped scanning does no
 
 So the naive version attaches another page's money to this programme and reports success. Scoping must exclude navigational, promo and example modules; locating a heading is not enough.
 
+**Decision: `aktion-mensch-stiftung` stays in, with empty `Conditions`.** It is a different funder (the Stiftung, not the Verein) running a concept-sketch process rather than a grant with terms, so it is the record that fits the schema least well. It stays because discovery finds it legitimately — it is in the nav and the sitemap — and because excluding the awkward record would hide the more useful fact: a schema that can represent "this programme states no grant ceiling of its own" without inventing values is doing its job. An empty `Conditions` is a correct answer, not a gap. Dropping it would also remove the only fixture that exercises module pruning.
+
 ### 2.7 Prerequisites differ in name, spelling, kind and presence
 
 | Programme | Prerequisite heading(s) |
