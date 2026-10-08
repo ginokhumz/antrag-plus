@@ -39,11 +39,16 @@ nowhere else — a "general" module that reaches for a site selector is miscateg
   an unclassified amount silently enters comparisons and is worse than a missing one.
 - **Durations are always months**, whichever unit the page uses. `4 Jahre` and `48 Monate`
   are the same limit and must compare equal.
+- **`id` is a deterministic UUIDv5 over the canonical path plus section fragment, never a
+  random v4.** Re-scraping must yield the same id for the same programme, or stored
+  references dangle and change detection cannot tell a moved deadline from a new
+  programme. Nothing derived from prose enters it — headings get retitled, ids must not
+  move. `emit` asserts uniqueness and exits non-zero on collision.
 - **One record is one fundable thing, not one page.** `pauschalfoerderung` is two
-  programmes on one URL and splits into two records sharing a `url`, distinguished by
-  `slug` and `anchor`. Discovery counts URLs, extraction counts programmes; the run report
-  carries both (`urls: 6, programmes: 7`) because a sub-programme can vanish while the URL
-  count stays right.
+  programmes on one URL; each record's `url` carries its own section fragment
+  (`…#151880`). Discovery counts URLs, extraction counts programmes; the run report carries
+  both (`urls: 6, programmes: 7`) because a sub-programme can vanish while the URL count
+  stays right.
 - **Prune nav, footer, promo and example-project modules before matching anything.** On
   `aktion-mensch-stiftung` an unpruned scan matches `Förderkonditionen` in a promo
   call-to-action and harvests Euro amounts belonging to other organisations' projects.

@@ -179,9 +179,8 @@ type Requirement = {
 };
 
 type Program = {
-  slug: string;
+  id: string;
   url: string;
-  anchor?: string;
   name: Field<string>;
   shortDescription: Field<string>;
   deadline: Field<Deadline>;
@@ -199,7 +198,15 @@ type Program = {
 
 This is what makes the data indexable. *Grants above €50,000* becomes `grant` where `per === 'project' && bound === 'max' && amountEur > 50000`, which on current data returns `junge-menschen` alone and correctly excludes `pauschalfoerderung` rather than matching its `50`. The build asserts that query as a unit test (§7) and does not expose it as an endpoint (§11) — the schema's job is to make the question answerable, and seven records need no query layer to prove it.
 
-**One record is one fundable thing.** `pauschalfoerderung` becomes two records sharing a `url` and distinguished by `slug` and `anchor` (`pauschalfoerderung-bildungsveranstaltungen`, `pauschalfoerderung-ferienreisen`). Keeping both sets of terms on one record would make "max grant" ambiguous for that programme and force the filter to pick or merge — reintroducing exactly the basis confusion the typed quantities exist to prevent. The cost is that programme count no longer equals URL count, which §4.2 handles explicitly.
+**`id` is a deterministic UUIDv5, not a random v4.** It is computed as `uuidv5(identity, NAMESPACE)` over a fixed project namespace, where `identity` is the canonical URL path plus `#<sectionId>` when a page splits. Both components are stable under content edits, so re-scraping yields the same id for the same programme.
+
+A random v4 would be regenerated on every run, which defeats the purpose of having an identity at all: stored references would dangle, and the change feed in §11 could never say "this programme's deadline moved" because it could not tell the same programme apart from a new one. Determinism is the requirement; UUID is the format.
+
+Nothing derived from prose enters the id. A heading can be retitled, a description rewritten, a programme reordered on the page, and the id does not move. The display name lives in `name`.
+
+**One record is one fundable thing.** `pauschalfoerderung` becomes two records whose `url` carries the section fragment — `…/pauschalfoerderung#151880` and `…/pauschalfoerderung#151904` — so each record's link points at its own programme rather than at a shared page. The source assigns those section ids (`151880`, `151904`), so they are stable identifiers rather than positional guesses.
+
+Keeping both sets of terms on one record would make "max grant" ambiguous for that programme and force any filter to pick or merge — reintroducing exactly the basis confusion the typed quantities exist to prevent. The cost is that programme count no longer equals URL count, which §4.2 handles explicitly.
 
 `Conditions` has no required members, which is how `aktion-mensch-stiftung` is represented: it states no grant ceiling, rate or duration of its own, and an empty `Conditions` says so without inventing values.
 
@@ -278,7 +285,7 @@ const grant: Resolver<Money[]>[] = [
 Extraction runs in three steps rather than one:
 
 1. **Prune non-content modules.** Drop footer, nav, newsletter, promo and example-project sections before anything is matched. This is what §2.6 requires: on `aktion-mensch-stiftung` an unpruned scan matches `Förderkonditionen` in a promo call-to-action and harvests four Euro amounts belonging to other organisations' projects.
-2. **Segment into programmes.** A page with repeated condition blocks splits at them, each segment becoming one `Program` with its own `slug` and `anchor`. `pauschalfoerderung` yields two; every other page yields one.
+2. **Segment into programmes.** A page with repeated condition blocks splits at them, each segment becoming one `Program` whose `url` carries that section's id as a fragment. `pauschalfoerderung` yields two; every other page yields one.
 3. **Resolve fields within a segment.** Condition and requirement resolvers never see text outside their segment, which is what keeps `Bewilligungsrunden … 2 Monaten` out of `maxDuration`.
 
 Label matching is **fuzzy, not literal** — normalised, stemmed, and edit-distance tolerant — because `Rahmenbedinungen` (§2.7) is misspelled in their CMS and a literal set would miss it without any signal that it had.
@@ -297,21 +304,23 @@ zod, with issues attached **per field, not per record**. A program with an unpar
 
 ### 4.6 emit
 
-`data/programs.json`, `data/raw/<slug>.html`, `data/run-report.json`. One command: `npm run scrape`.
+`data/programs.json`, `data/raw/<pathSegment>.html`, `data/run-report.json`. One command: `npm run scrape`.
+
+**`emit` asserts id uniqueness and exits non-zero on collision.** A duplicate id means one programme silently overwrites another in the output map — the same class of invisible data loss as reporting success on empty, and it fails the same way.
 
 ## 5. Backend
 
 Express + TypeScript. Reads `data/programs.json` at boot and validates it against the shared zod schema. If the scraper emitted garbage, **the API refuses to start** rather than serving it.
 
 ```
-GET /api/programs        → list payload: slug, name, shortDescription, url, deadline, conditions
-GET /api/programs/:slug  → full record incl. facts, body sections, provenance
+GET /api/programs      → list payload: id, name, shortDescription, url, deadline, conditions
+GET /api/programs/:id  → full record incl. facts, body sections, provenance
 GET /api/meta            → run report: scrapedAt, per-strategy counts, disagreements
 ```
 
 The list endpoint carries `conditions` but strips body prose; a list view filters on conditions and never renders prose.
 
-No query parameters. The endpoints return whole collections and the three filters the data model would support are deferred to §11 — six or seven records do not need server-side filtering, and building it here would be scaffolding for a scale this build does not have. The point the typed quantities make is that such filters *become possible*; demonstrating them is not the same as needing them. `/api/meta` is a few lines and earns its place — it lets the UI show when the data was scraped and that two programs were found by only one strategy. Unknown slug → `404 { error: { code, message } }`.
+No query parameters. The endpoints return whole collections and the three filters the data model would support are deferred to §11 — six or seven records do not need server-side filtering, and building it here would be scaffolding for a scale this build does not have. The point the typed quantities make is that such filters *become possible*; demonstrating them is not the same as needing them. `/api/meta` is a few lines and earns its place — it lets the UI show when the data was scraped and that two programs were found by only one strategy. Unknown id → `404 { error: { code, message } }`.
 
 **No database.** Seven records from a static snapshot (six URLs, §2.6): a JSON file keeps the pipeline inspectable with `cat`, and the repo clones-and-runs. Accepted tradeoff: re-scraping requires an API restart. A file watcher is not worth it.
 
@@ -320,7 +329,7 @@ No query parameters. The endpoints return whole collections and the three filter
 Vite + React + TypeScript, React Router, two routes, plain CSS, system font stack, **no component library**. Vite dev proxy to the API, so no CORS configuration.
 
 - `/` — list of programmes: name, short description, deadline badge, grant ceiling
-- `/programs/:slug` — name, description, facts, a conditions table, body sections, outbound link to the original page
+- `/programs/:id` — name, description, facts, a conditions table, body sections, outbound link to the original page
 
 Loading and error states handled; that is the extent of it. No filtering or sorting UI (§11).
 
@@ -344,10 +353,12 @@ Tests that would actually catch a regression:
 - **Scoping** — `Bewilligungsrunden … 2 Monaten` is *not* extracted as `maxDuration` on `pauschalfoerderung`. This is the regression test for the corrupted value in §2.5, and it belongs in the suite precisely because the naive version passed everything else
 - **Duration units** — `4 Jahre` and `48 Monate` both yield `{ months: 48 }`, so the two programmes stating the same limit compare equal
 - **Unclassifiable basis** — yields an issue and is dropped, not coerced
-- **Segmentation** — `pauschalfoerderung` yields exactly two records with distinct slugs and anchors, each carrying its own grant and exclusions; the run report reads `urls: 6, programmes: 7`
+- **Segmentation** — `pauschalfoerderung` yields exactly two records with distinct ids and fragment-bearing urls, each carrying its own grant and exclusions; the run report reads `urls: 6, programmes: 7`
+- **Id determinism** — running extraction twice over the same fixture produces identical ids. The test that would catch someone reaching for `randomUUID()`
+- **Id collision** — a fixture crafted to yield a duplicate id makes `emit` exit non-zero rather than dropping a record
 - **Module pruning on `aktion-mensch-stiftung`** — no conditions are extracted, and specifically none of `600.000`, `450.000` or the promo `Förderkonditionen` match. The regression test for §2.6, where the naive version succeeds and is wrong
 - **Misspelled label** — `Rahmenbedinungen` is classified as a requirement block despite the missing `g`
-- **API** — supertest: list shape, detail by slug, 404
+- **API** — supertest: list shape, detail by id, 404
 - **The §3 query as a unit test, not an endpoint test** — filtering the parsed records for `per === 'project' && bound === 'max' && amountEur > 50000` returns `junge-menschen` alone and excludes `pauschalfoerderung`. This is the assertion that matters: it proves the data shape answers the question, independent of whether an endpoint exposes it
 - **Frontend** — two tests: list renders n items; badge renders all three union kinds
 
