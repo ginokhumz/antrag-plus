@@ -63,16 +63,18 @@ Detail pages carry `Article` JSON-LD with clean `headline` and `description`. Bo
 
 ### 2.5 Funding conditions are structured, and naive parsing corrupts them
 
-Each detail page carries a conditions block — `Unsere Konditionen` on three pages, `Förderkonditionen` on a fourth. A first-pass regex over all four fixtures produced:
+Most detail pages carry a conditions block — `Unsere Konditionen` on four, `Förderkonditionen` on `pauschalfoerderung`, none of its own on `aktion-mensch-stiftung` (§2.6). A first-pass regex over all six fixtures produced:
 
-| Program | Grant | Rate(s) | Duration |
+| Programme | Grant | Rate(s) | Duration |
 |---|---|---|---|
 | sport-kultur | 50.000 | 90% / max 10% / min 10% | 24 Monate |
 | junge-menschen | 300.000 | 90% / max 10% / min 10% | 48 Monate |
+| anschubfoerderung-arbeit | 300.000 | 90% / max 10% / min 10% | **4 Jahre** |
 | zeichen-setzen | 7.500 | *none* | 12 Monate |
 | pauschalfoerderung | **50** (wrong) | 70% / min 30% | **2** (wrong) |
+| aktion-mensch-stiftung | **600.000** (wrong) | *none* | *none* |
 
-Both `pauschalfoerderung` values are wrong. Its real conditions are `50 Euro pro Tag` per person, `30 Euro` digital, `70 Euro` per night, plus `Maximal 400.000 Euro pro Jahr und Projekt-Partner`. The `2` is `Bewilligungsrunden … in Abständen von 2 Monaten` — the approval cadence, not a project duration. Two of three fields silently corrupted on one of six programs.
+Both `pauschalfoerderung` values are wrong, and so is the `aktion-mensch-stiftung` amount — §2.6 covers that one, which comes from another organisation's funded project. Its real conditions are `50 Euro pro Tag` per person, `30 Euro` digital, `70 Euro` per night, plus `Maximal 400.000 Euro pro Jahr und Projekt-Partner`. The `2` is `Bewilligungsrunden … in Abständen von 2 Monaten` — the approval cadence, not a project duration. Two of three fields silently corrupted on one of six programs.
 
 Five distinct traps, each verified against the fixtures:
 
@@ -80,11 +82,45 @@ Five distinct traps, each verified against the fixtures:
 2. **The bound lives in the adverb, not the number.** `maximal 50.000`, `bis zu 90 Prozent`, `mindestens 10 Prozent` — same numeral shape, opposite meaning. Drop the adverb and a ceiling becomes a floor.
 3. **Units differ per program.** 50.000 per *project*, 50 per *person per day*, 400.000 per *year per project-partner*. Comparing those as "grant size" is meaningless.
 4. **One page, three percentages, three referents.** 90% *of eligible costs*, max 10% *of total costs*, min 10% *own funds*. The word `Prozent` does not distinguish them.
-5. **The heading is unstable** — `Unsere Konditionen` vs `Förderkonditionen`.
+5. **The heading is unstable** — `Unsere Konditionen` vs `Förderkonditionen`, and absent entirely on one programme.
+6. **The duration unit varies.** `anschubfoerderung-arbeit` states `4 Jahre Laufzeit`; `junge-menschen` states `48 Monate`. Identical durations, different units. A pattern keyed on `Monate` returns nothing for the first — a miss rather than a wrong value, but a miss that looks like "this programme has no duration limit".
 
 These are what force the typed-quantity model in §3 rather than flat numbers, and they are the reason conditions cannot be stored as prose: the whole point of capturing them is to answer queries like *grants above €50,000*, which prose cannot serve and a flat number answers wrongly.
 
-### 2.6 Extraction tiers
+### 2.6 Pages and programmes are not one-to-one
+
+Discovery finds **6 URLs**; those URLs describe **7 fundable programmes**. `pauschalfoerderung` carries two complete sub-programmes — Bildungsveranstaltungen and Ferienreisen — each with its own `Förderkonditionen`, `Anforderungen` and `Was wir nicht fördern`. Every count in §2.1 is a count of URLs, not of programmes.
+
+`aktion-mensch-stiftung` goes the other way: it has **no conditions block of its own**, and its page is a four-step application process (`Konzept-Skizze einreichen → Skizze wird genehmigt → Projektplan erstellen → Modellprojekt umsetzen`) rather than a grant with terms.
+
+That page also produces two false positives that heading-scoped scanning does not catch:
+
+- A text match for `Förderkonditionen` **succeeds** — but it is a call-to-action inside a footer promo module linking to a different page.
+- The page's Euro amounts (`50.000`, `600.000`, `450.000`, `600.000`) come from its **example-projects list**, describing other organisations' funded work.
+
+So the naive version attaches another page's money to this programme and reports success. Scoping must exclude navigational, promo and example modules; locating a heading is not enough.
+
+### 2.7 Prerequisites differ in name, spelling, kind and presence
+
+| Programme | Prerequisite heading(s) |
+|---|---|
+| sport-kultur | `Wichtige Voraussetzungen` + `Formale Anforderungen` |
+| junge-menschen | those two + `Anerkennung nach Paragraph 75 SGB VIII` |
+| anschubfoerderung-arbeit | `Zusätzliche Hinweise` + `Formale Anforderungen` |
+| pauschalfoerderung | `Anforderungen` ×2, one per sub-programme |
+| zeichen-setzen | `Wichtig zu wissen` + `Rahmenbedinungen` |
+| aktion-mensch-stiftung | `Unsere Anforderungen` |
+
+Four separate problems:
+
+1. **Six programmes, six naming schemes.** Only `Was wir nicht fördern` is named consistently, and it is absent on `aktion-mensch-stiftung` — so 5 of 6.
+2. **Their CMS has a typo.** `zeichen-setzen` says `Rahmenbedinungen`, missing the `g`; the correct spelling appears nowhere on the page. An exact-string label set misses that section silently. This is the argument for fuzzy and stem matching at the `locale` tier rather than a literal vocabulary list.
+3. **The content is not the same kind of claim.** Most programmes state concrete or statutory requirements — `Anerkennung nach §75 SGB VIII` is a specific legal accreditation. `aktion-mensch-stiftung` requires projects be *überregional, innovativ, reichweitenstark*: qualitative editorial judgement, plus a link to downloadable Richtlinien as a PDF.
+4. **Presence varies.** No programme has the same set of requirement blocks as any other.
+
+Consequently requirements are stored as classified prose, not as typed predicates. They are genuinely not comparable across programmes, and pretending otherwise would repeat the §2.5 mistake in a new field.
+
+### 2.8 Extraction tiers
 
 The findings above sort into four tiers by how far the knowledge reaches:
 
@@ -92,7 +128,7 @@ The findings above sort into four tiers by how far the knowledge reaches:
 |---|---|---|---|
 | **standard** | `robots.txt`→sitemaps, JSON-LD | universal | URLs, name, description |
 | **framework** | `self.__next_f` RSC payload | dozens of frameworks | URLs |
-| **locale** | `Antragsphase`, `Frist`, `ganzjährig`, `Zuschuss`, `Eigenmittel`, `bis zu`/`maximal`/`mindestens` | every German funding site | deadline, facts, **conditions** |
+| **locale** | `Antragsphase`, `Frist`, `ganzjährig`, `Zuschuss`, `Eigenmittel`, `bis zu`/`maximal`/`mindestens` | every German funding site | deadline, facts, **conditions**, **requirements** |
 | **site** | `[data-module=fokusbox]` | one site | *nothing required* |
 
 The `locale` tier is the important one: a label-scan keyed on German funding vocabulary is **domain knowledge, not site knowledge** — written once, reused across every German funding source. The conditions model in §2.5 lands here too: `Zuschuss`, `förderfähige Kosten`, `Eigenmittel`, `Laufzeit` and the bound adverbs are national vocabulary, not site markup. Consequently `extract/aktionMensch.ts` is expected to hold only fallbacks.
@@ -132,14 +168,24 @@ type Conditions = {
   eligibleCosts?: Field<string[]>;
 };
 
+type RequirementKind = 'eligibility' | 'formal' | 'exclusions' | 'process';
+
+type Requirement = {
+  kind: RequirementKind;
+  heading: string;
+  text: string;
+};
+
 type Program = {
   slug: string;
   url: string;
+  anchor?: string;
   name: Field<string>;
   shortDescription: Field<string>;
   deadline: Field<Deadline>;
   facts: Record<string, Field<string>>;
   conditions: Conditions;
+  requirements: Requirement[];
   bodySections: { heading: string; text: string }[];
   issues: Issue[];
 };
@@ -147,9 +193,15 @@ type Program = {
 
 **Why `Deadline` is a union, not `string | null`.** `null` conflates *"this program has no deadline"* with *"we failed to find one."* Across 10,000 sources that distinction is the entire data-quality problem — `rolling` versus `unknown` is the difference between a correct extraction and a silent miss.
 
-**Why conditions are bounded quantities, not numbers.** Each of the five traps in §2.5 maps to one part of the shape. `bound` captures the adverb structurally, so `maximal` and `mindestens` cannot be confused. `per` and `of` carry the basis, so a per-person-day rate is never compared against a project ceiling. Both are arrays because `pauschalfoerderung` legitimately has several. Every member is optional because `zeichen-setzen` states no percentage at all. And because each stays a `Field<T>`, `evidence` retains the original German string — which is what makes a bad parse auditable instead of invisible.
+**Why conditions are bounded quantities, not numbers.** Each of the five traps in §2.5 maps to one part of the shape. `bound` captures the adverb structurally, so `maximal` and `mindestens` cannot be confused. `per` and `of` carry the basis, so a per-person-day rate is never compared against a project ceiling. `Duration` is always in months regardless of how the page words it, so `4 Jahre` and `48 Monate` compare equal rather than one of them vanishing. Both are arrays because `pauschalfoerderung` legitimately has several. Every member is optional because `zeichen-setzen` states no percentage at all. And because each stays a `Field<T>`, `evidence` retains the original German string — which is what makes a bad parse auditable instead of invisible.
 
 This is what makes the data indexable. *Grants above €50,000* becomes `grant` where `per === 'project' && bound === 'max' && amountEur > 50000`, which on current data returns `junge-menschen` alone and correctly excludes `pauschalfoerderung` rather than matching its `50`.
+
+**One record is one fundable thing.** `pauschalfoerderung` becomes two records sharing a `url` and distinguished by `slug` and `anchor` (`pauschalfoerderung-bildungsveranstaltungen`, `pauschalfoerderung-ferienreisen`). Keeping both sets of terms on one record would make "max grant" ambiguous for that programme and force the filter to pick or merge — reintroducing exactly the basis confusion the typed quantities exist to prevent. The cost is that programme count no longer equals URL count, which §4.2 handles explicitly.
+
+`Conditions` has no required members, which is how `aktion-mensch-stiftung` is represented: it states no grant ceiling, rate or duration of its own, and an empty `Conditions` says so without inventing values.
+
+**Why requirements are classified prose, not predicates.** Per §2.7 the headings differ six ways, one is misspelled in their CMS, and the content ranges from statutory accreditation to editorial judgement. `kind` is assigned by fuzzy label match and `heading` retains the original string as evidence, so a misclassification is visible rather than silent. Narrow extractors for specific high-value predicates — "requires §75 SGB VIII" — can come later; a generic comparable schema over this content cannot.
 
 **Why `Field<T>` carries a tier.** `evidence` is the matching label or selector, so any value traces back to the markup that produced it. No numeric confidence score — the tier is the trust signal and is not invented precision. Counting resolved fields by tier is the measurement the design note argues from.
 
@@ -188,6 +240,8 @@ Runs all three strategies independently, unions the results, records who missed 
                    { url: '…/aktion-mensch-stiftung',  missedBy: ['linkCluster'] } ] }
 ```
 
+**Discovery counts URLs, extraction counts programmes.** The report above is a URL reconciliation; one URL may yield several `Program` records (§2.6). `reconcile` therefore compares URL sets only, and the run report carries both numbers — `urls: 6, programmes: 7` — so a drop in either is visible. Treating them as one number would hide a sub-programme disappearing behind an unchanged URL count.
+
 A strategy that throws is recorded as failed, not fatal. **Zero total discoveries exits non-zero** — that is precisely the failure mode `/sitemap.xml` would have produced, and a scraper that reports success on an empty result is worse than one that crashes.
 
 No site-specific discovery strategy exists. `linkCluster` replaces an earlier `listingPage` design that depended on `[data-module=fokusbox]`; that selector was site knowledge wearing a general-strategy name.
@@ -219,13 +273,19 @@ const grant: Resolver<Money[]>[] = [
 
 `resolve()` walks the list and returns `Field<T>` tagged with the tier and evidence that produced it. `labelledFact` matches on **label text, not structure**, so it handles both observed shapes from §2.3.
 
-Condition resolvers scope themselves to the conditions section before scanning, which is what avoids trap 5 in §2.5: `CONDITION_HEADINGS` covers both spellings, and confining the scan keeps `Bewilligungsrunden … 2 Monaten` — which sits outside that section — from being read as a project duration.
+Extraction runs in three steps rather than one:
+
+1. **Prune non-content modules.** Drop footer, nav, newsletter, promo and example-project sections before anything is matched. This is what §2.6 requires: on `aktion-mensch-stiftung` an unpruned scan matches `Förderkonditionen` in a promo call-to-action and harvests four Euro amounts belonging to other organisations' projects.
+2. **Segment into programmes.** A page with repeated condition blocks splits at them, each segment becoming one `Program` with its own `slug` and `anchor`. `pauschalfoerderung` yields two; every other page yields one.
+3. **Resolve fields within a segment.** Condition and requirement resolvers never see text outside their segment, which is what keeps `Bewilligungsrunden … 2 Monaten` out of `maxDuration`.
+
+Label matching is **fuzzy, not literal** — normalised, stemmed, and edit-distance tolerant — because `Rahmenbedinungen` (§2.7) is misspelled in their CMS and a literal set would miss it without any signal that it had.
 
 ### 4.4 normalize
 
 **Text.** Join adjacent inline elements with *no* separator; insert whitespace only at block boundaries. This repairs `J<span>unge Menschen</span>` → `Junge Menschen` at the source. A post-hoc regex cannot do this correctly — it has no way to distinguish a spurious `J unge` from a real word break.
 
-**Quantities.** A single parser returns `{ value, bound, basis }` from a German phrase, never a bare number. Digit grouping is read German-style, so `50.000` is 50000 and `7.500` is 7500. The bound comes from the governing adverb — `maximal`/`höchstens`/`bis zu` → `max`, `mindestens` → `min`, otherwise `exact` — resolved from the words preceding the numeral, not from the numeral. The basis comes from the trailing unit phrase: `pro Tag` → `person-day`, `pro Jahr und Projekt-Partner` → `partner-year`, `der förderfähigen Kosten` → `eligible-costs`, `der Gesamtkosten` → `total-costs`, `Eigenmittel` → `own-funds`. A numeral whose basis cannot be classified yields an issue and is **dropped rather than guessed** — an unclassified amount is worse than a missing one, because it silently enters comparisons.
+**Quantities.** A single parser returns `{ value, bound, basis }` from a German phrase, never a bare number. Digit grouping is read German-style, so `50.000` is 50000 and `7.500` is 7500. The bound comes from the governing adverb — `maximal`/`höchstens`/`bis zu` → `max`, `mindestens` → `min`, otherwise `exact` — resolved from the words preceding the numeral, not from the numeral. The basis comes from the trailing unit phrase: `pro Tag` → `person-day`, `pro Jahr und Projekt-Partner` → `partner-year`, `der förderfähigen Kosten` → `eligible-costs`, `der Gesamtkosten` → `total-costs`, `Eigenmittel` → `own-funds`. Durations normalise to months from either unit, so `4 Jahre` and `48 Monate` both yield `48`. A numeral whose basis cannot be classified yields an issue and is **dropped rather than guessed** — an unclassified amount is worse than a missing one, because it silently enters comparisons.
 
 **Dates.** `01.09. – 15.10.2026` → `{ start: '2026-09-01', end: '2026-10-15' }`. The start date carries **no year**; inherit it from the end, and if that places start after end, decrement — a Dec→Jan window otherwise lands a year wrong. Handles en-dash, hyphen, and `bis`.
 
@@ -251,7 +311,7 @@ The list endpoint carries `conditions` but strips body prose; a list view filter
 
 **Query parameters** on `/api/programs`, which is where indexability stops being theoretical: `minGrantEur`, `maxGrantEur`, `minDurationMonths`, `minFundingRate`. Each filters only quantities whose basis makes the comparison valid — `minGrantEur=50000` considers `grant` entries with `per === 'project'` and ignores per-person-day rates rather than silently mixing them. A program whose relevant quantity is absent is excluded from a filtered result and never treated as zero. Unknown parameters are rejected with `400` instead of ignored, so a typo cannot look like an empty result set. `/api/meta` is a few lines and earns its place — it lets the UI show when the data was scraped and that two programs were found by only one strategy. Unknown slug → `404 { error: { code, message } }`.
 
-**No database.** Six records from a static snapshot: a JSON file keeps the pipeline inspectable with `cat`, and the repo clones-and-runs. Accepted tradeoff: re-scraping requires an API restart. A file watcher is not worth it.
+**No database.** Seven records from a static snapshot (six URLs, §2.6): a JSON file keeps the pipeline inspectable with `cat`, and the repo clones-and-runs. Accepted tradeoff: re-scraping requires an API restart. A file watcher is not worth it.
 
 ## 6. Frontend
 
@@ -274,13 +334,17 @@ Tests that would actually catch a regression:
 
 - **German dates** — year inheritance on `01.09. – 15.10.2026`; Dec→Jan rollover; en-dash vs hyphen vs `bis`; `ganzjährig` → `rolling`
 - **Text normalizer** — `J<span>unge Menschen</span>` → `Junge Menschen`, *and* that legitimate word breaks survive the same code path
-- **Each discovery strategy against its fixture, asserting 6 / 6 / 4** — pins the real-world discrepancy as a regression test
+- **Each discovery strategy against its fixture, asserting 6 / 6 / 4 URLs** — pins the real-world discrepancy as a regression test
 - **Reconcile** — union is 6; `disagreements` names exactly the two `linkCluster` missed
 - **Extraction tier per field** — description resolves at `standard`, deadline at `locale`. The note's central measurement, enforced by tests rather than claimed in prose
 - **Corrupted fixture** — a mangled date yields `{ kind: 'unknown' }` *plus* an issue, and the record still ships
 - **Quantity parser, one test per §2.5 trap** — `50.000` → 50000 and never 50; `maximal` → `max` while `mindestens` → `min` on identical numerals; `50 Euro pro Tag` classified `person-day` and not `project`; the three same-page percentages resolved to three different bases; both heading spellings found
 - **Scoping** — `Bewilligungsrunden … 2 Monaten` is *not* extracted as `maxDuration` on `pauschalfoerderung`. This is the regression test for the corrupted value in §2.5, and it belongs in the suite precisely because the naive version passed everything else
+- **Duration units** — `4 Jahre` and `48 Monate` both yield `{ months: 48 }`, so the two programmes stating the same limit compare equal
 - **Unclassifiable basis** — yields an issue and is dropped, not coerced
+- **Segmentation** — `pauschalfoerderung` yields exactly two records with distinct slugs and anchors, each carrying its own grant and exclusions; the run report reads `urls: 6, programmes: 7`
+- **Module pruning on `aktion-mensch-stiftung`** — no conditions are extracted, and specifically none of `600.000`, `450.000` or the promo `Förderkonditionen` match. The regression test for §2.6, where the naive version succeeds and is wrong
+- **Misspelled label** — `Rahmenbedinungen` is classified as a requirement block despite the missing `g`
 - **API** — supertest: list shape, detail by slug, 404, and that `minGrantEur=50000` returns `junge-menschen` only — the query from §3 asserted end to end
 - **Frontend** — two tests: list renders n items; badge renders all three union kinds
 
@@ -293,12 +357,13 @@ Not tested: Express wiring, Router configuration, or anything exercising only a 
 The one-pager argues from measurements this build produces, not from opinion.
 
 1. **Discovery automates; extraction resists.** Discovery has cheap deterministic probes — walk every sitemap `robots.txt` declares, look for an embedded route manifest, test whether `?page=2` differs, watch for XHRs returning JSON arrays. Each is a handful of requests and no model.
-2. **Key off standards and frameworks, never sites.** Per §2.6, on the 4 detail pages inspected during design, every required field resolved at `standard` or `locale` — no field required a site-specific selector. The build measures this across all 6 and reports the real ratio; that ratio, not an architectural preference, is the argument. If a field does fall through to the `site` tier, the note says so.
+2. **Key off standards and frameworks, never sites.** Per §2.8, on the 4 detail pages inspected during design, every required field resolved at `standard` or `locale` — no field required a site-specific selector. The build measures this across all 6 and reports the real ratio; that ratio, not an architectural preference, is the argument. If a field does fall through to the `site` tier, the note says so.
 3. **Typed quantities are the difference between stored and usable.** The conditions block (§2.5) is the sharpest case: the same six pages yield either prose nobody can query, flat numbers that are wrong 1000× over, or bounded quantities that answer real questions. Nothing about that distinction needs a model — it needs the right type.
 4. **The `locale` tier is the leverage.** German funding vocabulary is shared by every German funding site. A few hundred vocabulary entries plausibly cover a national corpus; that is the cheap layer between universal standards and per-site bespoke work.
-5. **What changes from this build.** Navigation is not a config value — a declarative config expresses static listings, query pagination and sitemaps, but "load more", infinite scroll and faceted POST search need imperative logic. Such a config inevitably grows a `strategy: custom` escape hatch, leaving a DSL *and* per-source code to maintain: worse than either alone. Instead, config becomes the **cached output of detection**, not something a human writes.
-6. **Where a model earns its cost.** Not per page. Once per *source*, on a sample, to propose resolvers that are then frozen, tested against fixtures, and monitored by the `verify:live` diff. A model that writes extractors is affordable; a model that reads pages is not.
-7. **Honest limits.** `linkCluster` degrades on non-hierarchical URLs (§4.2). Confidence tiers are ordinal, not calibrated. Nothing here handles a source whose listing exists only as a PDF. And the `MoneyBasis`/`RateBasis` enums are closed over six programs on one site — a national corpus will need more members, and the failure mode to watch is a new basis being silently coerced into an existing one rather than rejected.
+5. **Source cardinality is not page cardinality.** Six URLs on this one site describe seven programmes, and one page describes none of its own. A pipeline that assumes one record per page is wrong on the first source it meets, and the failure is invisible — the URL count stays right while a programme goes missing. Count both, always.
+6. **What changes from this build.** Navigation is not a config value — a declarative config expresses static listings, query pagination and sitemaps, but "load more", infinite scroll and faceted POST search need imperative logic. Such a config inevitably grows a `strategy: custom` escape hatch, leaving a DSL *and* per-source code to maintain: worse than either alone. Instead, config becomes the **cached output of detection**, not something a human writes.
+7. **Where a model earns its cost.** Not per page. Once per *source*, on a sample, to propose resolvers that are then frozen, tested against fixtures, and monitored by the `verify:live` diff. A model that writes extractors is affordable; a model that reads pages is not.
+8. **Honest limits.** `linkCluster` degrades on non-hierarchical URLs (§4.2). Confidence tiers are ordinal, not calibrated. Nothing here handles a source whose listing exists only as a PDF. And the `MoneyBasis`/`RateBasis` enums are closed over six programs on one site — a national corpus will need more members, and the failure mode to watch is a new basis being silently coerced into an existing one rather than rejected.
 
 ## 9. Code conventions
 
@@ -331,4 +396,4 @@ npm run verify:live   # diff live site against fixtures
 
 ## 11. Out of scope
 
-Headless browser (unnecessary — §2). Database. Authentication. Pagination (6 records). Deployment. i18n of the UI chrome. A generic extraction engine validated on one source.
+Headless browser (unnecessary — §2). Database. Authentication. Pagination (7 records). Deployment. i18n of the UI chrome. A generic extraction engine validated on one source.

@@ -37,8 +37,25 @@ nowhere else — a "general" module that reaches for a site selector is miscateg
   the unit phrase (`pro Tag` → person-day, `der förderfähigen Kosten` → eligible-costs).
   A quantity whose basis cannot be classified is **dropped with an issue, never guessed** —
   an unclassified amount silently enters comparisons and is worse than a missing one.
-- **Condition scans are scoped to the conditions section** before matching. Unscoped, the
-  approval cadence (`Bewilligungsrunden … 2 Monaten`) reads as a project duration.
+- **Durations are always months**, whichever unit the page uses. `4 Jahre` and `48 Monate`
+  are the same limit and must compare equal.
+- **One record is one fundable thing, not one page.** `pauschalfoerderung` is two
+  programmes on one URL and splits into two records sharing a `url`, distinguished by
+  `slug` and `anchor`. Discovery counts URLs, extraction counts programmes; the run report
+  carries both (`urls: 6, programmes: 7`) because a sub-programme can vanish while the URL
+  count stays right.
+- **Prune nav, footer, promo and example-project modules before matching anything.** On
+  `aktion-mensch-stiftung` an unpruned scan matches `Förderkonditionen` in a promo
+  call-to-action and harvests Euro amounts belonging to other organisations' projects.
+- **Then segment, then resolve.** Condition and requirement resolvers never see text
+  outside their own programme segment; unscoped, the approval cadence
+  (`Bewilligungsrunden … 2 Monaten`) reads as a project duration.
+- **Label matching is fuzzy, never a literal string set.** Their CMS misspells
+  `Rahmenbedingungen` as `Rahmenbedinungen`; a literal set misses that section with no
+  signal that it did.
+- **Requirements are classified prose, not predicates.** Six programmes use six heading
+  schemes and range from statutory accreditation to editorial judgement. Keep the original
+  heading as evidence so a misclassification stays visible.
 - **Validation issues attach per field, not per record.** A bad deadline degrades to
   `unknown` with a logged issue; the record still ships. Never drop a record silently.
 - **The API validates the snapshot at boot** against the same schema the scraper writes
