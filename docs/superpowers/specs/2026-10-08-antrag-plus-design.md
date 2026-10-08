@@ -85,8 +85,10 @@ type Field<T> = { value: T; tier: Tier; evidence: string };
 
 type Issue = { field: string; code: string; message: string; raw?: string };
 
+type IsoDate = string;
+
 type Deadline =
-  | { kind: 'window';  start?: string; end: string }   // ISO dates
+  | { kind: 'window';  start?: IsoDate; end: IsoDate }
   | { kind: 'rolling'; cadence?: string }
   | { kind: 'unknown' };
 
@@ -96,7 +98,7 @@ type Program = {
   name: Field<string>;
   shortDescription: Field<string>;
   deadline: Field<Deadline>;
-  facts: Record<string, Field<string>>;   // Art der Förderung, Fokusthema, Zielgruppe
+  facts: Record<string, Field<string>>;
   bodySections: { heading: string; text: string }[];
   issues: Issue[];
 };
@@ -237,7 +239,17 @@ The one-pager argues from measurements this build produces, not from opinion.
 5. **Where a model earns its cost.** Not per page. Once per *source*, on a sample, to propose resolvers that are then frozen, tested against fixtures, and monitored by the `verify:live` diff. A model that writes extractors is affordable; a model that reads pages is not.
 6. **Honest limits.** `linkCluster` degrades on non-hierarchical URLs (§4.2). Confidence tiers are ordinal, not calibrated. And nothing here handles a source whose listing exists only as a PDF.
 
-## 9. Repo layout and commands
+## 9. Code conventions
+
+Comments explain why, never what. Two kinds are specifically unwanted: comments that
+restate the code (`// ISO dates` above a field already typed `IsoDate`), and comments that
+enumerate current values (`// Art der Förderung, Fokusthema, Zielgruppe` beside a `facts`
+map), which go stale silently the moment the set changes. Where a fact can be encoded in a
+type or a function name instead of prose, encode it. The non-obvious reasoning — why a date
+range inherits its year from the end date, why inline elements join without whitespace — is
+exactly what a comment is for.
+
+## 10. Repo layout and commands
 
 ```
 schema/            shared zod contract
@@ -256,6 +268,6 @@ npm test              # fixtures, offline
 npm run verify:live   # diff live site against fixtures
 ```
 
-## 10. Out of scope
+## 11. Out of scope
 
 Headless browser (unnecessary — §2). Database. Authentication. Pagination (6 records). Deployment. i18n of the UI chrome. A generic extraction engine validated on one source.
