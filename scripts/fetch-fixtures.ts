@@ -1,7 +1,7 @@
 import { writeFile, mkdir } from 'node:fs/promises';
+import { LISTING_PATH, SITE_ORIGIN as BASE } from '../scraper/site.js';
 
 const UA = 'antrag-plus-fixtures/1.0 (job application exercise)';
-const BASE = 'https://www.aktion-mensch.de';
 const PROGRAMMES = [
   'sport-kultur',
   'junge-menschen',
@@ -26,9 +26,9 @@ await writeFile('tests/fixtures/sitemap-index.xml', await get('/index-sitemap.xm
 await sleep(1000);
 await writeFile('tests/fixtures/sitemap-meta.xml', await get('/meta/sitemap.xml'));
 await sleep(1000);
-await writeFile('tests/fixtures/listing.html', await get('/foerderung/foerderangebote'));
+await writeFile('tests/fixtures/listing.html', await get(LISTING_PATH));
 for (const slug of PROGRAMMES) {
   await sleep(1000);
-  await writeFile(`tests/fixtures/${slug}.html`, await get(`/foerderung/foerderangebote/${slug}`));
+  await writeFile(`tests/fixtures/${slug}.html`, await get(`${LISTING_PATH}/${slug}`));
 }
 console.log('fixtures written');

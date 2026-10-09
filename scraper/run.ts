@@ -10,9 +10,8 @@ import { emit } from './emit.js';
 import { extractPrograms } from './extract/index.js';
 import { createFetcher, type Fetched } from './fetch.js';
 import { parseRobots } from './robots.js';
+import { LISTING_URL, SITE_ORIGIN } from './site.js';
 import { validateProgram } from './validate.js';
-
-const LISTING_URL = 'https://www.aktion-mensch.de/foerderung/foerderangebote';
 
 const unreachable = (url: string, status: number, reason?: string): Program => {
   const issue: Issue = {
@@ -102,9 +101,8 @@ const httpGet = async (url: string, headers: Record<string, string>, signal: Abo
 if (process.argv[1]?.endsWith('run.ts')) {
   // robots.txt is fetched and applied to every later request, which is what makes
   // "honours robots" true of the running scraper rather than only of the parser.
-  const origin = new URL(LISTING_URL).origin;
   const bootstrap = createFetcher({ cacheDir: 'data/cache', get: httpGet });
-  const robotsBody = await bootstrap.fetch(`${origin}/robots.txt`);
+  const robotsBody = await bootstrap.fetch(`${SITE_ORIGIN}/robots.txt`);
   const robots = robotsBody.status === 200 ? parseRobots(robotsBody.html) : undefined;
 
   const fetcher = createFetcher({

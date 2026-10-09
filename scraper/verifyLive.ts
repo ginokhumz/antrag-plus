@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createFetcher } from './fetch.js';
+import { LISTING_URL as BASE } from './site.js';
 
 const digest = (s: string): string => createHash('sha256').update(s).digest('hex');
 
@@ -33,7 +34,6 @@ export const diffAgainstFixtures = async (deps: {
 };
 
 if (process.argv[1]?.endsWith('verifyLive.ts')) {
-  const BASE = 'https://www.aktion-mensch.de/foerderung/foerderangebote';
   const urls: Record<string, string> = {
     [BASE]: 'listing',
     [`${BASE}/sport-kultur`]: 'sport-kultur',

@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { extractPrograms } from './scraper/extract/index.js';
+import { LISTING_URL as BASE } from './scraper/site.js';
 
-const BASE = 'https://www.aktion-mensch.de/foerderung/foerderangebote';
 const ps = extractPrograms(await readFile('tests/fixtures/sport-kultur.html', 'utf8'), `${BASE}/sport-kultur`);
 const p = ps[0]!;
 console.log('eligibleCosts:', JSON.stringify(p.conditions.eligibleCosts?.value, null, 1));
