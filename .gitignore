@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules/
 /.pnp
 .pnp.js
 
@@ -38,3 +38,6 @@ next-env.d.ts
 # scraper output
 /data/*
 !/data/run-report.json
+
+# vite dep cache
+.vite/
