@@ -1,0 +1,5 @@
+{
+  "name": "@antrag-plus/server",
+  "private": true,
+  "type": "module"
+}
