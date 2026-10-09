@@ -43,3 +43,42 @@ describe('segment', () => {
     expect(segs[0]!.html).toContain('Förderkonditionen');
   });
 });
+
+describe('segment — a collapsed or unanchored split must not pass silently', () => {
+  const page = (body: string) => {
+    const $ = cheerio.load(`<html><body>${body}</body></html>`);
+    prune($);
+    return segment($);
+  };
+
+  it('reports when two conditions blocks share one anchor, instead of merging in silence', () => {
+    const segs = page(`
+      <section><h2 id="111-headline">Programm A</h2><p>a</p></section>
+      <section><h3>Unsere Konditionen</h3><p>Zuschuss maximal 1.000 Euro</p></section>
+      <section><h3>Förderkonditionen</h3><p>Zuschuss maximal 2.000 Euro</p></section>
+    `);
+    expect(segs).toHaveLength(1);
+    expect(segs[0]!.issues.map(i => i.code)).toContain('segments-collapsed');
+  });
+
+  it('reports when the anchor convention is absent, rather than colliding ids downstream', () => {
+    const segs = page(`
+      <section><h2>Programm A</h2><p>a</p></section>
+      <section><h3>Unsere Konditionen</h3><p>Zuschuss maximal 1.000 Euro</p></section>
+      <section><h2>Programm B</h2><p>b</p></section>
+      <section><h3>Förderkonditionen</h3><p>Zuschuss maximal 2.000 Euro</p></section>
+    `);
+    expect(segs.every(s => s.sectionId === undefined)).toBe(true);
+    expect(segs.flatMap(s => s.issues).map(i => i.code)).toContain('segment-anchor-missing');
+  });
+
+  it('carries no issues on the real multi-programme page', async () => {
+    const segs = await segmentsOf('pauschalfoerderung');
+    expect(segs.flatMap(s => s.issues)).toEqual([]);
+  });
+
+  it('carries no issues on a single-programme page', async () => {
+    const segs = await segmentsOf('sport-kultur');
+    expect(segs.flatMap(s => s.issues)).toEqual([]);
+  });
+});

@@ -57,21 +57,25 @@ export const extractPrograms = (html: string, canonicalUrl: string): Program[] =
 
   return segment($).map(seg => {
     const ctx = makeCtx(seg.html);
-    const issues: Issue[] = [...conditionIssues(ctx)];
+    const issues: Issue[] = [...seg.issues, ...conditionIssues(ctx)];
 
-    const name = resolve(nameResolvers, ctx) ?? field('', 'site', 'none');
-    const shortDescription = resolve(descriptionResolvers, ctx) ?? field('', 'site', 'none');
+    const noteError = (field: string) => (e: { name: string; message: string }) =>
+      issues.push({ field, code: 'resolver-threw', message: `${e.name}: ${e.message}` });
 
-    const deadline = resolve(deadlineResolvers, ctx);
+    const name = resolve(nameResolvers, ctx, noteError('name')) ?? field('', 'site', 'none');
+    const shortDescription =
+      resolve(descriptionResolvers, ctx, noteError('shortDescription')) ?? field('', 'site', 'none');
+
+    const deadline = resolve(deadlineResolvers, ctx, noteError('deadline'));
     if (deadline === undefined) {
       issues.push({ field: 'deadline', code: 'unresolved', message: 'no deadline label or rolling marker found' });
     }
 
-    const grant = resolve(grantResolvers, ctx);
-    const fundingRate = resolve(rateResolvers, ctx);
-    const coFinancing = resolve(coFinancingResolvers, ctx);
-    const maxDuration = resolve(durationResolvers, ctx);
-    const eligibleCosts = resolve(eligibleCostResolvers, ctx);
+    const grant = resolve(grantResolvers, ctx, noteError('conditions.grant'));
+    const fundingRate = resolve(rateResolvers, ctx, noteError('conditions.fundingRate'));
+    const coFinancing = resolve(coFinancingResolvers, ctx, noteError('conditions.coFinancing'));
+    const maxDuration = resolve(durationResolvers, ctx, noteError('conditions.maxDuration'));
+    const eligibleCosts = resolve(eligibleCostResolvers, ctx, noteError('conditions.eligibleCosts'));
 
     const facts = Object.fromEntries(
       Object.entries(ctx.allLabelledFacts()).map(([k, v]) => [k, field(v, 'locale', `label:${k}`)]),

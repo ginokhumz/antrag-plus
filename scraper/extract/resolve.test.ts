@@ -42,3 +42,21 @@ describe('resolve', () => {
     expect(resolve(rs, ctx)?.value).toEqual(['x']);
   });
 });
+
+describe('resolve — a throwing resolver is reported, not swallowed', () => {
+  it('records the resolver that threw', () => {
+    const thrown: { name: string; message: string }[] = [];
+    const rs: Resolver<string>[] = [
+      { tier: 'standard', name: 'boom', run: () => { throw new Error('bad selector'); } },
+      { tier: 'locale', name: 'ok', run: () => 'value' },
+    ];
+    const got = resolve(rs, ctx, e => thrown.push(e));
+    expect(got?.value).toBe('value');
+    expect(thrown).toEqual([{ name: 'boom', message: 'bad selector' }]);
+  });
+
+  it('still works without a reporter', () => {
+    const rs: Resolver<string>[] = [{ tier: 'standard', name: 'boom', run: () => { throw new Error('x'); } }];
+    expect(resolve(rs, ctx)).toBeUndefined();
+  });
+});

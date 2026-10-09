@@ -24,20 +24,27 @@ const editDistance = (a: string, b: string): number => {
   return prev[b.length]!;
 };
 
-const TOLERANCE = 2;
+// Tolerance scales with length. A flat 2 aliases short German headings that differ by
+// meaning but not by many characters: "Wen wir fördern" (whom we fund) and "Was wir
+// fördern" (what we fund) are two edits apart and would match each other's vocabulary.
+// One edit is enough for the real-world case this exists for, a CMS typo.
+const toleranceFor = (length: number): number => (length <= 20 ? 1 : 2);
 
 export const matchesLabel = (heading: string, vocabulary: string[]): boolean => {
   const h = normalise(heading);
   if (!h) return false;
   return vocabulary.some(entry => {
     const v = normalise(entry);
-    return h === v || editDistance(h, v) <= TOLERANCE;
+    if (h === v) return true;
+    return editDistance(h, v) <= toleranceFor(Math.max(h.length, v.length));
   });
 };
 
 export const CONDITION_HEADINGS = ['Unsere Konditionen', 'Förderkonditionen', 'Konditionen'];
 
-export const ELIGIBLE_COST_HEADINGS = ['Förderfähige Kosten', 'Was wir fördern'];
+// Only headings that genuinely introduce COSTS. "Was wir fördern" names the activities
+// a funder supports, which is a different claim and was being published as cost categories.
+export const ELIGIBLE_COST_HEADINGS = ['Förderfähige Kosten', 'Förderfähige Ausgaben'];
 
 export const DEADLINE_LABELS = [
   'Aktuelle Antragsphase',

@@ -1,7 +1,9 @@
 {
-  "scrapedAt": "2026-10-09T09:19:19.966Z",
+  "scrapedAt": "2026-10-09T09:45:22.929Z",
   "urls": 6,
   "programmes": 7,
+  "rejected": 0,
+  "rejectedUrls": [],
   "strategies": [
     {
       "name": "sitemapIndex",
@@ -36,7 +38,8 @@
   "tierCounts": {
     "standard": 10,
     "framework": 0,
-    "locale": 47,
+    "locale": 29,
     "site": 2
-  }
+  },
+  "factCount": 15
 }

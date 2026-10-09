@@ -81,3 +81,36 @@ describe('firstProsePara and headingSections', () => {
     expect(headings).toContain('Was wir nicht fördern');
   });
 });
+
+describe('headingSections scoping — a heading owns the content that follows it, not its whole section', () => {
+  it('does not give a heading the text of its sibling headings', async () => {
+    const ctx = await ctxFor('sport-kultur');
+    const conditions = ctx.headingSections().find(s => s.heading === 'Unsere Konditionen');
+    expect(conditions!.text).not.toContain('Was wir nicht fördern');
+    expect(conditions!.text).not.toContain('Wichtige Voraussetzungen');
+  });
+
+  it('scopes a sub-heading to its own value rather than the enclosing block', async () => {
+    const ctx = await ctxFor('sport-kultur');
+    const costs = ctx.headingSections().find(s => s.heading === 'Förderfähige Kosten');
+    expect(costs!.text).toContain('Personalkosten');
+    expect(costs!.text).not.toContain('50.000');
+    expect(costs!.text).not.toContain('Eigenmittel');
+  });
+
+  it('gives sibling headings distinct text rather than one repeated blob', async () => {
+    const ctx = await ctxFor('sport-kultur');
+    const sections = ctx.headingSections();
+    const zuschuss = sections.find(s => s.heading === 'Zuschuss')!;
+    const finanzierung = sections.find(s => s.heading === 'Finanzierung')!;
+    expect(zuschuss.text).not.toBe(finanzierung.text);
+    expect(zuschuss.text).toContain('50.000');
+    expect(finanzierung.text).toContain('Eigenmittel');
+  });
+
+  it('yields empty text for a heading whose panel is empty in the server HTML', async () => {
+    const ctx = await ctxFor('sport-kultur');
+    const req = ctx.headingSections().find(s => s.heading === 'Wichtige Voraussetzungen');
+    expect(req!.text).toBe('');
+  });
+});

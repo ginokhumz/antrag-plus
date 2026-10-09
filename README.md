@@ -17,7 +17,7 @@ npm run dev        # API on :3001, app on :5173
 ```
 
 ```bash
-npm test           # 197 tests, offline by construction
+npm test           # 238 tests, offline by construction
 npm run typecheck
 npm run verify:live   # re-fetch and diff against committed fixtures
 ```
@@ -50,8 +50,12 @@ it, so the design note's central ratio is measured rather than asserted:
 |---|---|
 | `standard` (JSON-LD, sitemaps) | 10 |
 | `framework` (RSC payload) | 0 |
-| `locale` (German funding vocabulary) | 47 |
+| `locale` (German funding vocabulary) | 29 |
 | `site` (this CMS's markup) | 2 |
+
+Only values that actually resolved are counted — a placeholder is not a success — and the
+15 `facts` are reported separately, since they come from a DOM shape rather than from German
+vocabulary.
 
 **Quantities are never bare numbers.** A grant is `{ amountEur, bound, per }`, because
 `50.000` is fifty thousand, `maximal` and `mindestens` are opposite bounds on identical

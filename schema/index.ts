@@ -83,8 +83,11 @@ export const RunReportSchema = z.object({
   scrapedAt: z.iso.datetime(),
   urls: z.number().int().nonnegative(),
   programmes: z.number().int().nonnegative(),
+  rejected: z.number().int().nonnegative(),
+  rejectedUrls: z.array(z.string()),
   strategies: z.array(z.object({ name: z.string(), found: z.number().int().nonnegative(), failed: z.boolean() })),
   disagreements: z.array(z.object({ url: z.string(), missedBy: z.array(z.string()) })),
   tierCounts: z.record(TierSchema, z.number().int().nonnegative()),
+  factCount: z.number().int().nonnegative(),
 });
 export type RunReport = z.infer<typeof RunReportSchema>;

@@ -19,9 +19,20 @@ The central idea. Extraction knowledge is classified by how far it reaches:
 | `locale` | German funding vocabulary — `Antragsphase`, `Frist`, `ganzjährig` | every German funding site |
 | `site` | selectors like `[data-module=fokusbox]` | one site |
 
-Every extracted value is tagged with the tier that produced it. Prefer the highest-reaching
-tier that works. Site-tier knowledge is confined to `extract/aktionMensch.ts` and belongs
-nowhere else — a "general" module that reaches for a site selector is miscategorized.
+Every extracted value is tagged with the tier that produced it, and `tierCounts` in the run
+report counts only values that actually resolved — a placeholder carrying evidence `none`
+resolved from nothing and is not a success. Prefer the highest-reaching tier that works.
+
+Site-tier knowledge is **not** confined to one file. It currently lives in four places, and
+a change to any of them is a change to this source's assumptions:
+
+- `extract/segment.ts` — the `<sectionId>-headline` id convention
+- `extract/pageCtx.ts` — `segmentTitle()`, which reads that same convention
+- `extract/prune.ts` — `div[data-module]` as a module boundary
+- `extract/labels.ts` — the verbatim heading vocabulary
+
+Anything claiming to be general must not reach for those. When adding site knowledge, add
+it to one of those four and say so here; do not scatter it further.
 
 ## Invariants
 

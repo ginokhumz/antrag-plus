@@ -112,3 +112,80 @@ describe('scrape', () => {
     await expect(scrape({ listingUrl, fetch: fetcherFor({}), outDir })).rejects.toThrow(/no programmes discovered/i);
   });
 });
+
+describe('scrape — nothing disappears without a trace', () => {
+  const listingUrl = 'https://www.aktion-mensch.de/foerderung/foerderangebote';
+
+  const fixturePages = async (): Promise<Record<string, string>> => ({
+    [listingUrl]: await readFile('tests/fixtures/listing.html', 'utf8'),
+    'https://www.aktion-mensch.de/robots.txt': await readFile('tests/fixtures/robots.txt', 'utf8'),
+    'https://www.aktion-mensch.de/index-sitemap.xml': await readFile('tests/fixtures/sitemap-index.xml', 'utf8'),
+    'https://www.aktion-mensch.de/sitemap.xml': await readFile('tests/fixtures/sitemap-main.xml', 'utf8'),
+    'https://www.aktion-mensch.de/meta/sitemap.xml': await readFile('tests/fixtures/sitemap-meta.xml', 'utf8'),
+    [`${listingUrl}/sport-kultur`]: await readFile('tests/fixtures/sport-kultur.html', 'utf8'),
+    [`${listingUrl}/junge-menschen`]: await readFile('tests/fixtures/junge-menschen.html', 'utf8'),
+    [`${listingUrl}/anschubfoerderung-arbeit`]: await readFile('tests/fixtures/anschubfoerderung-arbeit.html', 'utf8'),
+    [`${listingUrl}/pauschalfoerderung`]: await readFile('tests/fixtures/pauschalfoerderung.html', 'utf8'),
+    [`${listingUrl}/zeichen-setzen`]: await readFile('tests/fixtures/zeichen-setzen.html', 'utf8'),
+    [`${listingUrl}/aktion-mensch-stiftung`]: await readFile('tests/fixtures/aktion-mensch-stiftung.html', 'utf8'),
+  });
+
+  const fetcherFor = (pages: Record<string, string>, throwOn?: string) => async (url: string) => {
+    if (throwOn !== undefined && url.includes(throwOn)) throw new Error('ECONNRESET');
+    const html = pages[url];
+    return html === undefined
+      ? { html: '', status: 404, fetchedAt: new Date().toISOString(), fromCache: false }
+      : { html, status: 200, fetchedAt: new Date().toISOString(), fromCache: false };
+  };
+
+  it('survives a network rejection on one detail page and still emits the rest', async () => {
+    const r = await scrape({ listingUrl, fetch: fetcherFor(await fixturePages(), 'zeichen-setzen'), outDir });
+    expect(r.programmes).toBe(7);
+    const written: Program[] = JSON.parse(await readFile(join(outDir, 'programs.json'), 'utf8'));
+    const stub = written.find(p => p.url.includes('zeichen-setzen'));
+    expect(stub!.issues.map(i => i.code)).toContain('fetch-failed');
+  });
+
+  it('counts a record rejected by the schema instead of discarding it in silence', async () => {
+    const pages = await fixturePages();
+    pages[`${listingUrl}/sport-kultur`] = '<html><body><section><h2>Ohne alles</h2></section></body></html>';
+    const r = await scrape({ listingUrl, fetch: fetcherFor(pages), outDir });
+    expect(r.rejected).toBeGreaterThan(0);
+    expect(r.rejectedUrls).toContain(`${listingUrl}/sport-kultur`);
+  });
+
+  it('reports zero rejections on a clean run', async () => {
+    const r = await scrape({ listingUrl, fetch: fetcherFor(await fixturePages()), outDir });
+    expect(r.rejected).toBe(0);
+    expect(r.rejectedUrls).toEqual([]);
+  });
+});
+
+describe('emit — tierCounts must count resolutions, not placeholders', () => {
+  const withFields = (over: Partial<Program>): Program => ({ ...programme(A, 'https://x.test/a'), ...over });
+
+  it('excludes a field whose evidence is none, since it resolved from nothing', async () => {
+    const p = withFields({ deadline: field({ kind: 'unknown' }, 'locale', 'none') });
+    const r = await emit({ outDir, programmes: [p], report, rawHtml: new Map() });
+    expect(r.tierCounts.locale).toBe(0);
+  });
+
+  it('counts a field that genuinely resolved', async () => {
+    const p = withFields({ deadline: field({ kind: 'window', end: '2026-10-15' }, 'locale', 'label:Frist') });
+    const r = await emit({ outDir, programmes: [p], report, rawHtml: new Map() });
+    expect(r.tierCounts.locale).toBe(1);
+  });
+
+  it('reports facts separately rather than inflating the tier ratio with them', async () => {
+    const p = withFields({ facts: { 'Art der Förderung': field('Projektförderung', 'locale', 'label:Art der Förderung') } });
+    const r = await emit({ outDir, programmes: [p], report, rawHtml: new Map() });
+    expect(r.factCount).toBe(1);
+    expect(r.tierCounts.locale).toBe(0);
+  });
+
+  it('counts the named contract fields and nothing else', async () => {
+    const r = await emit({ outDir, programmes: [programme(A, 'https://x.test/a')], report, rawHtml: new Map() });
+    const total = Object.values(r.tierCounts).reduce((a, b) => a + b, 0);
+    expect(total).toBe(2);
+  });
+});

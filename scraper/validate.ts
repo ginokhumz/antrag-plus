@@ -11,9 +11,28 @@ const degrade = (candidate: Record<string, unknown>, issues: Issue[]): Record<st
     out['deadline'] = { value: { kind: 'unknown' }, tier: 'locale', evidence: 'degraded' };
   }
 
-  if (!ConditionsSchema.safeParse(out['conditions']).success) {
-    issues.push({ field: 'conditions', code: 'invalid', message: 'conditions failed schema; degraded to empty' });
-    out['conditions'] = {};
+  // Degrade per member, not per block: one implausible percentage must not take the
+  // grant, duration and co-financing down with it. Spec §5 requires per-field issues.
+  const rawConditions = out['conditions'];
+  if (ConditionsSchema.safeParse(rawConditions).success === false) {
+    if (rawConditions === null || typeof rawConditions !== 'object') {
+      issues.push({ field: 'conditions', code: 'invalid', message: 'conditions was not an object; degraded to empty' });
+      out['conditions'] = {};
+    } else {
+      const kept: Record<string, unknown> = {};
+      for (const [member, value] of Object.entries(rawConditions)) {
+        if (ConditionsSchema.safeParse({ [member]: value }).success) {
+          kept[member] = value;
+        } else {
+          issues.push({
+            field: `conditions.${member}`,
+            code: 'invalid',
+            message: `${member} failed schema; dropped while the rest of conditions was kept`,
+          });
+        }
+      }
+      out['conditions'] = kept;
+    }
   }
 
   const reqs = Array.isArray(out['requirements']) ? out['requirements'] : [];

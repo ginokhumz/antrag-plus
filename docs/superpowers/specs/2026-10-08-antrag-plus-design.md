@@ -135,7 +135,13 @@ The findings above sort into four tiers by how far the knowledge reaches:
 | **locale** | `Antragsphase`, `Frist`, `ganzjährig`, `Zuschuss`, `Eigenmittel`, `bis zu`/`maximal`/`mindestens` | every German funding site | deadline, facts, **conditions**, **requirements** |
 | **site** | `[data-module=fokusbox]` | one site | *nothing required* |
 
-The `locale` tier is the important one: a label-scan keyed on German funding vocabulary is **domain knowledge, not site knowledge** — written once, reused across every German funding source. The conditions model in §2.5 lands here too: `Zuschuss`, `förderfähige Kosten`, `Eigenmittel`, `Laufzeit` and the bound adverbs are national vocabulary, not site markup. Consequently `extract/aktionMensch.ts` is expected to hold only fallbacks.
+The `locale` tier is the important one: a label-scan keyed on German funding vocabulary is **domain knowledge, not site knowledge** — written once, reused across every German funding source. The conditions model in §2.5 lands here too: `Zuschuss`, `förderfähige Kosten`, `Eigenmittel`, `Laufzeit` and the bound adverbs are national vocabulary, not site markup. **Corrected during implementation.** This section originally planned a single
+`extract/aktionMensch.ts` holding all site knowledge. No such file was built, and the
+separation is real but not structural: site-tier knowledge ended up in four places —
+`segment.ts` and `pageCtx.ts` (the `<sectionId>-headline` id convention), `prune.ts`
+(`div[data-module]`) and `labels.ts` (the verbatim heading vocabulary). The tier *labels*
+on resolved values are accurate and tested; the claim that one file contains site knowledge
+is not, and `CLAUDE.md` now names the four locations instead.
 
 ## 3. Data contract
 

@@ -28,9 +28,12 @@ const report: RunReport = {
   scrapedAt: '2026-10-09T08:00:00.000Z',
   urls: 6,
   programmes: 7,
+  rejected: 0,
+  rejectedUrls: [],
   strategies: [{ name: 'sitemapIndex', found: 6, failed: false }],
   disagreements: [{ url: 'https://x.test/zeichen-setzen', missedBy: ['linkCluster'] }],
   tierCounts: { standard: 2, framework: 0, locale: 2, site: 0 },
+  factCount: 0,
 };
 
 const app = createApp({ programmes: [programme], report });

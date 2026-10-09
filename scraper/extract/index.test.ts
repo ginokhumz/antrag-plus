@@ -46,11 +46,26 @@ describe('extractPrograms — conditions', () => {
     expect(p!.conditions.maxDuration?.value.months).toBe(48);
   });
 
-  it('lists the eligible cost categories on sport-kultur', async () => {
+  it('lists the eligible cost categories on sport-kultur as whole categories', async () => {
     const [p] = await programmesOf('sport-kultur');
     const costs = p!.conditions.eligibleCosts?.value ?? [];
-    expect(costs.some(c => c.startsWith('Personalkosten'))).toBe(true);
-    expect(costs.some(c => c.startsWith('Honorarkosten'))).toBe(true);
+    expect(costs).toEqual([
+      'Personalkosten',
+      'Honorarkosten',
+      'Sachkosten',
+      'Investitionen (bis maximal 10 Prozent der Gesamtkosten)',
+      'Kosten zur Herstellung der Barrierefreiheit',
+    ]);
+  });
+
+  it('never splits a cost category mid-phrase on German capitalisation', async () => {
+    for (const name of ALL) {
+      for (const p of await programmesOf(name)) {
+        for (const c of p.conditions.eligibleCosts?.value ?? []) {
+          expect(c).not.toMatch(/\b(der|zur|und|von|für|bis)$/);
+        }
+      }
+    }
   });
 
   it('leaves conditions empty on aktion-mensch-stiftung and records why, since its terms are phase-scoped', async () => {

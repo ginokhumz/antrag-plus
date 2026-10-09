@@ -3,12 +3,17 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export type HttpResponse = { status: number; body: Buffer; headers: Record<string, string> };
-export type HttpGet = (url: string, headers: Record<string, string>) => Promise<HttpResponse>;
+export type HttpGet = (
+  url: string,
+  headers: Record<string, string>,
+  signal: AbortSignal,
+) => Promise<HttpResponse>;
 export type Fetched = { html: string; status: number; fetchedAt: string; fromCache: boolean };
 
 const USER_AGENT = 'antrag-plus/1.0 (job application exercise; contact via repository)';
 const MIN_INTERVAL_MS = 1000;
 const MAX_ATTEMPTS = 3;
+const REQUEST_TIMEOUT_MS = 20_000;
 
 const charsetOf = (headers: Record<string, string>, body: Buffer): string => {
   const fromHeader = /charset=([\w-]+)/i.exec(headers['content-type'] ?? '');
@@ -29,17 +34,25 @@ export const createFetcher = (opts: {
   get: HttpGet;
   cacheDir: string;
   sleep?: (ms: number) => Promise<void>;
+  robots?: { allow(path: string): boolean };
+  bypassCache?: boolean;
 }): { fetch(url: string): Promise<Fetched> } => {
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>(r => setTimeout(r, ms)));
   let lastRequestAt = 0;
 
   const fetchOne = async (url: string): Promise<Fetched> => {
+    if (opts.robots && !opts.robots.allow(new URL(url).pathname)) {
+      return { html: '', status: 0, fetchedAt: new Date().toISOString(), fromCache: false };
+    }
+
     const cachePath = join(opts.cacheDir, keyFor(url));
-    try {
-      const cached = await readFile(cachePath, 'utf8');
-      return { html: cached, status: 200, fetchedAt: new Date().toISOString(), fromCache: true };
-    } catch {
-      // Not cached yet; fall through to the network.
+    if (!opts.bypassCache) {
+      try {
+        const cached = await readFile(cachePath, 'utf8');
+        return { html: cached, status: 200, fetchedAt: new Date().toISOString(), fromCache: true };
+      } catch {
+        // Not cached yet.
+      }
     }
 
     let res: HttpResponse | undefined;
@@ -47,7 +60,11 @@ export const createFetcher = (opts: {
       const since = Date.now() - lastRequestAt;
       if (since < MIN_INTERVAL_MS) await sleep(MIN_INTERVAL_MS - since);
       lastRequestAt = Date.now();
-      res = await opts.get(url, { 'User-Agent': USER_AGENT, 'Accept-Language': 'de-DE,de;q=0.9' });
+      res = await opts.get(
+        url,
+        { 'User-Agent': USER_AGENT, 'Accept-Language': 'de-DE,de;q=0.9' },
+        AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      );
       if (res.status < 500) break;
       if (attempt < MAX_ATTEMPTS) await sleep(MIN_INTERVAL_MS * 2 ** attempt);
     }

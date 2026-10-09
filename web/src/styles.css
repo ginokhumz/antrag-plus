@@ -91,3 +91,16 @@ h2 {
 .lead {
   font-size: 1.1rem;
 }
+
+.issues {
+  margin-top: 2.5rem;
+  padding: 1rem 1.25rem;
+  border-left: 3px solid var(--rule);
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.issues ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+}

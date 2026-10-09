@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import type { CheerioAPI } from 'cheerio';
+import type { AnyNode, Element } from 'domhandler';
 import { collapse, text } from '../normalize/text.js';
 import { matchesLabel } from './labels.js';
 
@@ -9,6 +10,7 @@ export type PageCtx = {
   jsonLd: JsonLd;
   q(selector: string): string | undefined;
   section(headings: string[]): string | undefined;
+  listUnder(headings: string[]): string[] | undefined;
   labelledFact(labels: string[]): string | undefined;
   allLabelledFacts(): Record<string, string>;
   firstProsePara(): string | undefined;
@@ -73,15 +75,32 @@ export const makeCtx = (html: string): PageCtx => {
     return facts;
   };
 
+  // A heading owns the content that follows it, with any nested heading LABELS removed:
+  // an accordion whose panels are empty in the server HTML would otherwise take its
+  // sibling headings as its body, while a conditions block legitimately keeps the
+  // values under its sub-headings. Scoping to the enclosing <section> instead gives
+  // every heading in that section the same blob.
+  const textWithoutHeadings = (nodes: AnyNode[]): string => {
+    const html = nodes.map(n => $.html(n)).join('');
+    if (!html.trim()) return '';
+    const frag = cheerio.load(`<div id="frag">${html}</div>`);
+    frag('h1, h2, h3, h4, h5, h6').remove();
+    const root = frag('#frag')[0];
+    return root ? collapse(text(frag, root)) : '';
+  };
+
+  const contentAfter = (el: Element): string => {
+    const own = textWithoutHeadings($(el).nextAll().toArray());
+    if (own) return own;
+    // The CMS wraps some labels in their own div, putting the value in the wrapper's sibling.
+    return textWithoutHeadings($(el).parent().nextAll().toArray());
+  };
+
   const headingSections = (): { heading: string; text: string }[] => {
     const out: { heading: string; text: string }[] = [];
     $('h2, h3').each((_i, el) => {
       const heading = collapse($(el).text());
-      if (!heading) return;
-      const container = $(el).closest('section');
-      const body = container.length > 0 ? text($, container[0]!) : '';
-      const stripped = body.startsWith(heading) ? body.slice(heading.length) : body;
-      out.push({ heading, text: collapse(stripped) });
+      if (heading) out.push({ heading, text: contentAfter(el) });
     });
     return out;
   };
@@ -93,6 +112,25 @@ export const makeCtx = (html: string): PageCtx => {
       return found.length > 0 ? collapse(text($, found[0]!)) || undefined : undefined;
     },
     section: headings => headingSections().find(s => matchesLabel(s.heading, headings))?.text,
+    // Cost categories are separate block elements. Splitting their joined text on
+    // German capitalisation would cut mid-phrase, because German capitalises every noun.
+    listUnder: headings => {
+      const el = $('h2, h3')
+        .toArray()
+        .find(h => matchesLabel(collapse($(h).text()), headings));
+      if (!el) return undefined;
+      const scope = textWithoutHeadings($(el).nextAll().toArray())
+        ? $(el).nextAll().toArray()
+        : $(el).parent().nextAll().toArray();
+      const html = scope.map(n => $.html(n)).join('');
+      if (!html.trim()) return undefined;
+      const frag = cheerio.load(`<div id="frag">${html}</div>`);
+      frag('h1, h2, h3, h4, h5, h6').remove();
+      const items = frag('#frag li').toArray();
+      const blocks = items.length > 0 ? items : frag('#frag p, #frag div:not(:has(div, p, li))').toArray();
+      const out = blocks.map(n => collapse(text(frag, n))).filter(t => t.length > 1);
+      return out.length > 0 ? out : undefined;
+    },
     labelledFact: labels => {
       for (const [label, value] of Object.entries(allLabelledFacts())) {
         if (matchesLabel(label, labels)) return value || label;

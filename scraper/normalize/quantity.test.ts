@@ -119,3 +119,73 @@ describe('parseQuantities — unclassifiable values are dropped, never guessed',
     expect(parseQuantities('Wir fördern inklusive Projekte')).toEqual({ money: [], rates: [], issues: [] });
   });
 });
+
+describe('parseQuantities — the nearest referent wins, not a fixed priority', () => {
+  it('reads Gesamtkosten as total costs even when Barrierefreiheit follows later', () => {
+    const phrase = 'Investitionen (bis maximal 10 Prozent der Gesamtkosten) Kosten zur Herstellung der Barrierefreiheit';
+    expect(parseQuantities(phrase).rates).toEqual([{ percent: 10, bound: 'max', of: 'total-costs' }]);
+  });
+
+  it('still reads accessibility costs when that is the nearest referent', () => {
+    expect(parseQuantities('bis zu 70 Prozent der Kosten zur Herstellung der Barrierefreiheit').rates).toEqual([
+      { percent: 70, bound: 'max', of: 'accessibility-costs' },
+    ]);
+  });
+});
+
+describe('parseQuantities — grouped and scaled amounts are never silently wrong', () => {
+  it('records an issue rather than returning 0 for a space-grouped amount', () => {
+    const { money, issues } = parseQuantities('Zuschuss maximal 50 000 Euro');
+    expect(money.every(m => m.amountEur !== 0)).toBe(true);
+    expect(issues.some(i => i.code === 'unparsed-amount')).toBe(true);
+  });
+
+  it('records an issue rather than dropping a scale word silently', () => {
+    const { money, issues } = parseQuantities('5 Mio. Euro Fördermittel insgesamt');
+    expect(money).toEqual([]);
+    expect(issues.some(i => i.code === 'unparsed-amount')).toBe(true);
+  });
+
+  it('handles Millionen spelled out', () => {
+    const { issues } = parseQuantities('2,5 Millionen Euro stehen bereit');
+    expect(issues.some(i => i.code === 'unparsed-amount')).toBe(true);
+  });
+
+  it('reports a duration range rather than flattening it to an exact figure', () => {
+    const { duration, issues } = parseQuantities('Laufzeit 1 bis 3 Jahre');
+    expect(duration).toEqual({ months: 36, bound: 'max' });
+    expect(issues.some(i => i.code === 'duration-range')).toBe(true);
+  });
+});
+
+describe('parseQuantities — a basis phrase belongs to its nearest amount', () => {
+  it('does not let an amount take the basis of the amount after it', () => {
+    const phrase = 'für Kinder und Jugendliche ohne Behinderung 50 € Maximal 400.000 Euro pro Jahr und Projekt-Partner';
+    const { money, issues } = parseQuantities(phrase);
+    expect(money).toEqual([{ amountEur: 400000, bound: 'max', per: 'partner-year' }]);
+    expect(issues.some(i => i.code === 'unclassified-basis' && i.raw?.includes('50'))).toBe(true);
+  });
+
+  it('does not give a bracketed sub-allocation the parent project ceiling', () => {
+    const phrase = 'Zuschuss maximal 7.500 € (bis zu 5.000 € für Honorar- und Sachkosten)';
+    const { money, issues } = parseQuantities(phrase);
+    expect(money).toEqual([{ amountEur: 7500, bound: 'max', per: 'project' }]);
+    expect(issues.some(i => i.code === 'unclassified-basis' && i.raw?.includes('5.000'))).toBe(true);
+  });
+
+  it('still reads two genuinely separate per-day rates', () => {
+    const { money } = parseQuantities('physische Teilnahme: 50 Euro pro Tag digitale Teilnahme: 30 Euro pro Tag');
+    expect(money).toEqual([
+      { amountEur: 50, bound: 'exact', per: 'person-day' },
+      { amountEur: 30, bound: 'exact', per: 'person-day' },
+    ]);
+  });
+
+  it('does not let a percentage take a referent beyond the next percentage', () => {
+    const phrase = 'bis zu 90 Prozent der förderfähigen Kosten bis maximal 10 Prozent der Gesamtkosten';
+    expect(parseQuantities(phrase).rates).toEqual([
+      { percent: 90, bound: 'max', of: 'eligible-costs' },
+      { percent: 10, bound: 'max', of: 'total-costs' },
+    ]);
+  });
+});

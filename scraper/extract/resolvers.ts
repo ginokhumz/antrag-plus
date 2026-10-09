@@ -98,14 +98,7 @@ export const durationResolvers: Resolver<Duration>[] = [
 export const eligibleCostResolvers: Resolver<string[]>[] = [
   {
     tier: 'locale',
-    name: 'section:Förderfähige Kosten',
-    run: c => {
-      const t = c.section(ELIGIBLE_COST_HEADINGS);
-      if (t === undefined) return undefined;
-      return t
-        .split(/(?<=[a-zäöüß)])\s+(?=[A-ZÄÖÜ])/)
-        .map(part => part.trim())
-        .filter(part => part.length > 2 && part.length < 120);
-    },
+    name: 'list:Förderfähige Kosten',
+    run: c => c.listUnder(ELIGIBLE_COST_HEADINGS)?.filter(item => item.length < 120),
   },
 ];

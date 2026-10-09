@@ -28,10 +28,10 @@ describe('validateProgram', () => {
     expect(r?.issues.map(i => i.field)).toContain('deadline');
   });
 
-  it('degrades malformed conditions to empty and keeps the record', () => {
+  it('drops the malformed conditions member and names it in the issue', () => {
     const r = validateProgram({ ...base, conditions: { grant: field([{ amountEur: -5, bound: 'max', per: 'project' }], 'locale', 's') } });
     expect(r?.program.conditions.grant).toBeUndefined();
-    expect(r?.issues.map(i => i.field)).toContain('conditions');
+    expect(r?.issues.map(i => i.field)).toContain('conditions.grant');
   });
 
   it('drops malformed requirements rather than the record', () => {
@@ -50,5 +50,23 @@ describe('validateProgram', () => {
     const prior = { field: 'conditions', code: 'unclassified-basis', message: 'x', raw: '1.000 Euro' };
     const r = validateProgram({ ...base, issues: [prior] });
     expect(r?.issues).toContainEqual(prior);
+  });
+});
+
+describe('validateProgram — one bad quantity must not wipe the whole conditions object', () => {
+  const grant = field([{ amountEur: 50000, bound: 'max', per: 'project' }], 'locale', 's');
+  const badRate = field([{ percent: 150, bound: 'max', of: 'total-costs' }], 'locale', 's');
+
+  it('keeps the valid members and drops only the invalid one', () => {
+    const r = validateProgram({ ...base, conditions: { grant, fundingRate: badRate } });
+    expect(r?.program.conditions.grant?.value[0]?.amountEur).toBe(50000);
+    expect(r?.program.conditions.fundingRate).toBeUndefined();
+    expect(r?.issues.some(i => i.field === 'conditions.fundingRate')).toBe(true);
+  });
+
+  it('keeps a valid duration when a rate is malformed', () => {
+    const maxDuration = field({ months: 24, bound: 'max' }, 'locale', 's');
+    const r = validateProgram({ ...base, conditions: { fundingRate: badRate, maxDuration } });
+    expect(r?.program.conditions.maxDuration?.value.months).toBe(24);
   });
 });

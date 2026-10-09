@@ -49,9 +49,37 @@ export const ProgramDetail = () => {
       {program.requirements.map(req => (
         <section key={`${req.kind}-${req.heading}`}>
           <h2>{req.heading}</h2>
-          <p>{req.text}</p>
+          {req.text ? <p>{req.text}</p> : <p className="muted">Nur auf der Originalseite ausgeführt.</p>}
         </section>
       ))}
+
+      {program.bodySections.filter(s => s.text).length > 0 ? (
+        <>
+          <h2>Weitere Angaben</h2>
+          {program.bodySections
+            .filter(s => s.text)
+            .map(s => (
+              <section key={s.heading}>
+                <h3>{s.heading}</h3>
+                <p>{s.text}</p>
+              </section>
+            ))}
+        </>
+      ) : undefined}
+
+      {program.issues.length > 0 ? (
+        <section className="issues">
+          <h2>Hinweise zur Extraktion</h2>
+          <ul>
+            {program.issues.map((issue, i) => (
+              <li key={`${issue.code}-${i}`}>
+                <strong>{issue.field}</strong> — {issue.message}
+                {issue.raw ? <span className="muted"> ({issue.raw})</span> : undefined}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : undefined}
 
       <p>
         <a href={program.url} rel="noopener noreferrer" target="_blank">

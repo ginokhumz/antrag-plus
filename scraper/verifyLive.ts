@@ -44,10 +44,13 @@ if (process.argv[1]?.endsWith('verifyLive.ts')) {
     [`${BASE}/aktion-mensch-stiftung`]: 'aktion-mensch-stiftung',
   };
 
+  // bypassCache is the point of this command: a cached read would diff the cache
+  // against the fixture and report "no drift" forever, including after the site moves.
   const fetcher = createFetcher({
     cacheDir: 'data/verify-cache',
-    get: async (url, headers) => {
-      const res = await globalThis.fetch(url, { headers });
+    bypassCache: true,
+    get: async (url, headers, signal) => {
+      const res = await globalThis.fetch(url, { headers, signal });
       return {
         status: res.status,
         body: Buffer.from(await res.arrayBuffer()),
@@ -71,5 +74,6 @@ if (process.argv[1]?.endsWith('verifyLive.ts')) {
     for (const url of result.changed) console.log(`changed:     ${url}`);
     for (const url of result.unreachable) console.log(`unreachable: ${url}`);
     console.log('\nThe site moved, not the code. Re-run scripts/fetch-fixtures.ts and review the test failures.');
+    process.exit(1);
   }
 }

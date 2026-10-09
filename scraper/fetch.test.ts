@@ -90,3 +90,48 @@ describe('createFetcher', () => {
     expect(waits.some(ms => ms > 900)).toBe(true);
   });
 });
+
+describe('createFetcher — timeouts and robots', () => {
+  it('passes an abort signal so a stalled connection cannot hang the run', async () => {
+    const seen: (AbortSignal | undefined)[] = [];
+    const get: HttpGet = async (_u, _h, signal) => { seen.push(signal); return ok(Buffer.from('<p>x</p>')); };
+    await createFetcher({ get, cacheDir, sleep: async () => {} }).fetch('https://x.test/a');
+    expect(seen[0]).toBeInstanceOf(AbortSignal);
+  });
+
+  it('refuses a path robots.txt disallows, without calling out', async () => {
+    let calls = 0;
+    const get: HttpGet = async () => { calls += 1; return ok(Buffer.from('<p>x</p>')); };
+    const f = createFetcher({
+      get,
+      cacheDir,
+      sleep: async () => {},
+      robots: { allow: (p: string) => !p.startsWith('/webservices') },
+    });
+    const r = await f.fetch('https://x.test/webservices/secret');
+    expect(calls).toBe(0);
+    expect(r.status).toBe(0);
+    expect(r.html).toBe('');
+  });
+
+  it('allows a path robots.txt permits', async () => {
+    const get: HttpGet = async () => ok(Buffer.from('<p>ok</p>'));
+    const f = createFetcher({
+      get,
+      cacheDir,
+      sleep: async () => {},
+      robots: { allow: (p: string) => !p.startsWith('/webservices') },
+    });
+    expect((await f.fetch('https://x.test/foerderung/x')).html).toBe('<p>ok</p>');
+  });
+
+  it('bypasses the cache when asked, which is what makes drift detection possible', async () => {
+    let calls = 0;
+    const get: HttpGet = async () => { calls += 1; return ok(Buffer.from(`<p>${calls}</p>`)); };
+    const f = createFetcher({ get, cacheDir, sleep: async () => {}, bypassCache: true });
+    await f.fetch('https://x.test/a');
+    const second = await f.fetch('https://x.test/a');
+    expect(calls).toBe(2);
+    expect(second.fromCache).toBe(false);
+  });
+});
