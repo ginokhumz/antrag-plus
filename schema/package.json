@@ -1,5 +1,14 @@
 {
   "name": "@antrag-plus/schema",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./id.js": "./id.ts"
+  },
+  "dependencies": {
+    "uuid": "^13.0.0",
+    "zod": "^4.6.5"
+  }
 }
