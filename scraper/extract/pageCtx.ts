@@ -12,6 +12,7 @@ export type PageCtx = {
   labelledFact(labels: string[]): string | undefined;
   allLabelledFacts(): Record<string, string>;
   firstProsePara(): string | undefined;
+  segmentTitle(): string | undefined;
   headingSections(): { heading: string; text: string }[];
 };
 
@@ -107,6 +108,10 @@ export const makeCtx = (html: string): PageCtx => {
     firstProsePara: () => {
       const p = $('.prose p, main p, article p').first();
       return p.length > 0 ? collapse(text($, p[0]!)) || undefined : undefined;
+    },
+    segmentTitle: () => {
+      const h = $('h2[id$="-headline"]').first();
+      return h.length > 0 ? collapse(h.text()) || undefined : undefined;
     },
     headingSections,
   };
