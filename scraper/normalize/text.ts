@@ -1,4 +1,4 @@
-import type { AnyNode, Element } from 'domhandler';
+import type { AnyNode } from 'domhandler';
 import type { CheerioAPI } from 'cheerio';
 
 const BLOCK = new Set([
@@ -10,7 +10,7 @@ const BLOCK = new Set([
 
 export const collapse = (s: string): string => s.replace(/[\s ]+/g, ' ').trim();
 
-export const text = ($: CheerioAPI, el: Element): string => {
+export const text = ($: CheerioAPI, el: AnyNode): string => {
   const parts: string[] = [];
 
   const walk = (node: AnyNode): void => {

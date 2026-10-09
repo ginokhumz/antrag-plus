@@ -36,8 +36,14 @@ export const deadlineResolvers: Resolver<Deadline>[] = [
     tier: 'locale',
     name: 'rolling:ganzjährig|laufend',
     run: c => {
-      const body = c.headingSections().map(s => s.text).join(' ');
-      const d = parseDeadline(body);
+      // The rolling statement is a page-level sentence that need not sit under any
+      // heading, so this scans the whole segment and isolates the sentence carrying
+      // the marker: handing a whole page to parseDeadline would let an unrelated
+      // date elsewhere win as a window.
+      const body = c.bodyText();
+      const sentence = /[^.!?]*\b(?:ganzjährig|laufend\w*)\b[^.!?]*[.!?](?:[^.!?]*[.!?])?/i.exec(body);
+      if (!sentence) return undefined;
+      const d = parseDeadline(sentence[0]);
       return d.kind === 'rolling' ? d : undefined;
     },
   },

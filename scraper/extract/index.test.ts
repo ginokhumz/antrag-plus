@@ -60,6 +60,14 @@ describe('extractPrograms — conditions', () => {
     expect(p!.issues.map(i => i.code)).toContain('phase-scoped-conditions');
   });
 
+  it('reads pauschalfoerderung as rolling, since it states ganzjährig in an unheaded section', async () => {
+    const ps = await programmesOf('pauschalfoerderung');
+    for (const p of ps) {
+      expect(p.deadline.value.kind).toBe('rolling');
+      expect(p.deadline.tier).toBe('locale');
+    }
+  });
+
   it('does not read the approval cadence as a project duration on pauschalfoerderung', async () => {
     const ps = await programmesOf('pauschalfoerderung');
     for (const p of ps) expect(p.conditions.maxDuration?.value.months).not.toBe(2);

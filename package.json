@@ -4,7 +4,7 @@
   "scripts": {
     "test": "vitest run",
     "scrape": "tsx scraper/run.ts",
-    "typecheck": "tsc -p tsconfig.base.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit",
     "dev:api": "tsx watch server/index.ts",
     "dev:web": "vite --config web/vite.config.ts web",
     "dev": "npm-run-all --parallel dev:api dev:web",
