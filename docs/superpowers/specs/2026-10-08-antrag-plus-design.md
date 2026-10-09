@@ -72,9 +72,9 @@ Most detail pages carry a conditions block — `Unsere Konditionen` on four, `F�
 | anschubfoerderung-arbeit | 300.000 | 90% / max 10% / min 10% | **4 Jahre** |
 | zeichen-setzen | 7.500 | *none* | 12 Monate |
 | pauschalfoerderung | **50** (wrong) | 70% / min 30% | **2** (wrong) |
-| aktion-mensch-stiftung | **600.000** (wrong) | *none* | *none* |
+| aktion-mensch-stiftung | *phase-scoped, see §2.6* | *phase-scoped* | *phase-scoped* |
 
-Both `pauschalfoerderung` values are wrong, and so is the `aktion-mensch-stiftung` amount — §2.6 covers that one, which comes from another organisation's funded project. Its real conditions are `50 Euro pro Tag` per person, `30 Euro` digital, `70 Euro` per night, plus `Maximal 400.000 Euro pro Jahr und Projekt-Partner`. The `2` is `Bewilligungsrunden … in Abständen von 2 Monaten` — the approval cadence, not a project duration. Two of three fields silently corrupted on one of six programs.
+Both `pauschalfoerderung` values are wrong. `aktion-mensch-stiftung` states its terms per process phase rather than in a conditions block, which §2.6 covers. Its real conditions are `50 Euro pro Tag` per person, `30 Euro` digital, `70 Euro` per night, plus `Maximal 400.000 Euro pro Jahr und Projekt-Partner`. The `2` is `Bewilligungsrunden … in Abständen von 2 Monaten` — the approval cadence, not a project duration. Two of three fields silently corrupted on one of six programs.
 
 Five distinct traps, each verified against the fixtures:
 
@@ -91,14 +91,16 @@ These are what force the typed-quantity model in §3 rather than flat numbers, a
 
 Discovery finds **6 URLs**; those URLs describe **7 fundable programmes**. `pauschalfoerderung` carries two complete sub-programmes — Bildungsveranstaltungen and Ferienreisen — each with its own `Förderkonditionen`, `Anforderungen` and `Was wir nicht fördern`. Every count in §2.1 is a count of URLs, not of programmes.
 
-`aktion-mensch-stiftung` goes the other way: it has **no conditions block of its own**, and its page is a four-step application process (`Konzept-Skizze einreichen → Skizze wird genehmigt → Projektplan erstellen → Modellprojekt umsetzen`) rather than a grant with terms.
+`aktion-mensch-stiftung` goes the other way: it has **no conditions block under any recognised heading**, and its page is a four-step application process (`Konzept-Skizze einreichen → Skizze wird genehmigt → Projektplan erstellen → Modellprojekt umsetzen`) rather than a grant with terms.
 
-That page also produces two false positives that heading-scoped scanning does not catch:
+**Corrected during implementation.** An earlier reading of this page claimed its Euro amounts all came from its example-projects list. Only `450.000` does. The page in fact states its own terms, twice, inside the process steps:
 
-- A text match for `Förderkonditionen` **succeeds** — but it is a call-to-action inside a footer promo module linking to a different page.
-- The page's Euro amounts (`50.000`, `600.000`, `450.000`, `600.000`) come from its **example-projects list**, describing other organisations' funded work.
+- Phase 3 (`Projektplan erstellen`): `Zuschuss: bis zu 50.000 Euro | 90 Prozent der Gesamtkosten | maximal 12 Monate Laufzeit`
+- Phase 4 (`Modellprojekt umsetzen`): `Zuschuss: bis zu 600.000 Euro | 90 Prozent der Gesamtkosten | maximal 36 Monate Laufzeit`
 
-So the naive version attaches another page's money to this programme and reports success. Scoping must exclude navigational, promo and example modules; locating a heading is not enough.
+So this programme's conditions are **phase-scoped**: one programme, two sets of terms applying to successive stages. `Conditions` has no phase dimension, and inventing one mid-build would repeat the §2.5 error in a new place — a single "max grant" for this programme is ambiguous between 50.000 and 600.000. The build therefore leaves its `Conditions` empty **and records an issue naming the reason**, rather than silently reporting absence. Representing phases is listed in §11.
+
+That page still produces one false positive that heading-scoped scanning does not catch: a text match for `Förderkonditionen` **succeeds** against a call-to-action inside a footer promo module linking to a different page, and its example-projects list carries another organisation's `450.000`. Scoping must exclude navigational, promo and example modules; locating a heading is not enough.
 
 **Decision: `aktion-mensch-stiftung` stays in, with empty `Conditions`.** It is a different funder (the Stiftung, not the Verein) running a concept-sketch process rather than a grant with terms, so it is the record that fits the schema least well. It stays because discovery finds it legitimately — it is in the nav and the sitemap — and because excluding the awkward record would hide the more useful fact: a schema that can represent "this programme states no grant ceiling of its own" without inventing values is doing its job. An empty `Conditions` is a correct answer, not a gap. Dropping it would also remove the only fixture that exercises module pruning.
 
