@@ -79,3 +79,11 @@ no requests at all.
 - [Design spec](docs/superpowers/specs/2026-10-08-antrag-plus-design.md) — the findings the
   build argues from, including two the implementation corrected
 - [Implementation plan](docs/superpowers/plans/2026-10-09-antrag-plus.md) — the 20 TDD tasks
+
+
+## Next steps
+Given more time I would have
+1. Added another source. 
+1. Ability to filter out based on certain sections e.g. funding amount, time period, etc. 
+1. Processes the pages in parallel to speed up processing.
+1. Cleanup the cache and raw directory

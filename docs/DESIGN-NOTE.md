@@ -121,3 +121,74 @@ everything" is true of every field except these. **No PDF handling**, and one pr
 real eligibility rules are in a linked PDF. Where a quantity could not be classified the
 record says so: 5 of 7 programmes carry issues, and the detail view shows them rather than
 presenting a gap as a fact.
+
+## Plan: from one source to ten thousand
+
+The sections above argue that the per-source cost can be made small. This is how I would
+spend it, in order, with a measurement that could stop each phase.
+
+**0. Make site knowledge data, not code.** Today `extractPrograms(html, url)` takes no
+source argument: site knowledge is imported from four modules (`segment.ts`, `pageCtx.ts`,
+`prune.ts`, `labels.ts`) and `site.ts` is a constant. Collapse those into one
+`SourceProfile` — discovery strategy, prune selectors, segment boundary, extra heading
+aliases — and make extraction `extract(html, url, profile, vocabulary)`, a pure function.
+`site.ts` becomes one row in a source registry. Aktion Mensch's profile should be four
+small entries; if it is not, the tier labels have been flattering the code.
+
+**1. Ten deliberately different sources, by hand.** A federal programme database, a state
+development bank, two foundations on WordPress, a Next.js site, a source whose listing is a
+PDF. Run them with an *empty* profile first and record `tierCounts` per source. The 95.1%
+was measured on the site the vocabulary was written against; this is where it is tested.
+**Kill criterion:** if `standard` + `locale` cannot resolve the required fields on most of
+the ten, the thesis is wrong and the plan becomes per-source code, priced accordingly.
+
+**2. Onboarding becomes a pipeline, not a task.** For each new source, automatically:
+probe discovery (every strategy, reconciled, disagreements kept); check whether the server
+HTML holds the content or, like the requirement bodies here, needs a browser — headless
+only for sources that fail that check; extract a sample of ~10 pages with an empty profile.
+Sources whose required fields resolve ship with no profile at all. For the rest, a model
+reads the sample **once** and proposes a profile — as data, never code — which is accepted
+only if it improves the sample's results without changing any field that already
+resolved. The sample is committed as that source's fixtures. Failures go to a human queue,
+not into the dataset.
+
+**3. Issues are the work queue.** "Dropped with an issue, never guessed" pays off here.
+Every unrecognised basis phrase, unmatched heading and `unknown` deadline is logged with its
+source text; aggregated across the corpus and ranked by frequency, it is the backlog for
+the shared vocabulary. One new `locale` entry fixes every source that uses it, and the whole
+corpus re-extracts without refetching — provided the HTML is kept. Today it barely is:
+`data/raw/` holds one undated copy per URL, overwritten each run, never pruned, and named by
+last path segment, so two sources' `/foerderung` pages would collide. At scale it becomes a
+content-addressed snapshot store — keyed by hash, dated by fetch, with a retention policy —
+because re-extraction, fixtures and the change feed below all depend on it. The
+vocabulary, not the scrapers, is the asset that compounds.
+
+**4. Every source's fixtures run in CI as exact snapshots.** A vocabulary change shows its
+blast radius as a diff across every source, not as a green suite. This is the "passes but
+wrong" lesson applied at scale: a snapshot catches the extra garbage a "contains X"
+assertion never will.
+
+**5. Steady state is cheap and self-monitoring.** Politeness is per host, so throughput
+comes from crawling many hosts in parallel, not from crawling one faster. The fetch cache
+here never expires — `npm run scrape` serves the first copy it fetched until someone deletes
+`data/cache/`, and only `verify:live` bypasses it — which is fine for seven pages and wrong
+for a crawler. Conditional GETs and sitemap `lastmod` replace it, skipping pages that are
+actually unchanged rather than pages that were merely seen before; a hash of each pruned
+segment skips
+re-extraction. The run report becomes a per-source time series — `urls`, `programmes`,
+issue rate, strategy disagreements, share of `site` tier — and alerts fire on drift: zero
+discovered, a programme count drop, a rising `site` share. Because ids are UUIDv5 over path
+and fragment, a field-level history per id plus the dated snapshots behind it is a change
+feed ("deadline moved", "ceiling rose"); that is the product a funding aggregator's users
+want.
+
+**Where the money goes.** Per page: one HTTP request and a parse. Per source: one model
+call at onboarding and one per detected breakage. Cost scales with the number of sources
+and how often they redesign, not with pages crawled — which is what makes ten thousand
+affordable.
+
+**What I would watch first.** Basis enums closed over seven programmes, so the first new
+source will produce bases that must be rejected, not coerced. Segmenting by repeated
+condition blocks, which is one site's convention and may need its own profile field. And
+PDFs: if a meaningful share of eligibility rules live in Richtlinien documents, PDF
+extraction is a second pipeline, not a resolver.
