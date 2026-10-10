@@ -1,0 +1,10 @@
+{
+  "name": "@antrag-plus/server",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@antrag-plus/schema": "*",
+    "express": "^5.1.0",
+    "zod": "^4.6.5"
+  }
+}

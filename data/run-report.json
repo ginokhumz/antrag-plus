@@ -1,0 +1,45 @@
+{
+  "scrapedAt": "2026-10-09T13:23:24.928Z",
+  "urls": 6,
+  "programmes": 7,
+  "rejected": 0,
+  "rejectedUrls": [],
+  "strategies": [
+    {
+      "name": "sitemapIndex",
+      "found": 6,
+      "failed": false
+    },
+    {
+      "name": "embeddedManifest",
+      "found": 6,
+      "failed": false
+    },
+    {
+      "name": "linkCluster",
+      "found": 4,
+      "failed": false
+    }
+  ],
+  "disagreements": [
+    {
+      "url": "https://www.aktion-mensch.de/foerderung/foerderangebote/zeichen-setzen",
+      "missedBy": [
+        "linkCluster"
+      ]
+    },
+    {
+      "url": "https://www.aktion-mensch.de/foerderung/foerderangebote/aktion-mensch-stiftung",
+      "missedBy": [
+        "linkCluster"
+      ]
+    }
+  ],
+  "tierCounts": {
+    "standard": 10,
+    "framework": 0,
+    "locale": 29,
+    "site": 2
+  },
+  "factCount": 15
+}
